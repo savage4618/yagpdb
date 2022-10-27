@@ -21,7 +21,7 @@ var Command = &commands.YAGCommand{
 	RunFunc: func(data *dcmd.Data) (interface{}, error) {
 		var cf string
 		var err error
-		request := 0
+		request := rand.Intn(2)
 		if request > 0 {
 			cf, err = catFactFromAPI()
 			if err == nil {
@@ -44,7 +44,7 @@ func catFactFromAPI() (string, error) {
 		return "", err
 	}
 
-	req.Header.Set("User-Agent", "RandomDadGeneralPurposeDiscordBot")
+	req.Header.Set("User-Agent", "RandomDadGPDB")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
