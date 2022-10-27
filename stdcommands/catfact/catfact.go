@@ -21,7 +21,7 @@ var Command = &commands.YAGCommand{
 	RunFunc: func(data *dcmd.Data) (interface{}, error) {
 		var cf string
 		var err error
-		request := rand.Intn(2)
+		request := 0
 		if request > 0 {
 			cf, err = catFactFromAPI()
 			if err == nil {
