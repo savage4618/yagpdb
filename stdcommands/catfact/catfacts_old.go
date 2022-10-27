@@ -2,7 +2,7 @@ package catfact
 
 // Cat facts collected from vaious sources since the api i used shut down
 
-var Catfacts = []string{
+var Catfacts_OLD = []string{
 	`Americans really love their pet cats. There are approximately 14 million more house cats than dogs in the US.`,
 	`Male cats are called toms and females are called queens or mollies.`,
 	`The saying, 'A cat always lands on its feet' isn't just an old myth. Some cats have fallen more than 320 metres onto concrete and come away unharmed.`,
