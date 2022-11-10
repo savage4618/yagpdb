@@ -20,7 +20,7 @@ services:
     command:
       # - "/app/yagpdb"
       - "-all"
-      - "-pa"
+      #- "-pa"
       - "-exthttps=false"
       - "-https=false"
     depends_on:
@@ -32,8 +32,8 @@ services:
       - cert_cache:/app/cert
       - soundboard:/app/soundboard
     ports:
-      - '80:80'
-      - '443:443'
+      - '5000:5000'
+      - '5001:5001'
     env_file:
       - app.env
 
