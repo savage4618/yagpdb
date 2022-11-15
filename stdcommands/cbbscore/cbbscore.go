@@ -120,7 +120,7 @@ var Command = &commands.YAGCommand{
 	Name:        "cbbscore",
 	Description: "College Basketball Scores",
 	Arguments: []*dcmd.ArgDef{
-		{Name: "Word", Type: dcmd.String},
+		{Name: "Team", Type: dcmd.String},
 	},
 	SlashCommandEnabled: true,
 	DefaultEnabled:      true,
