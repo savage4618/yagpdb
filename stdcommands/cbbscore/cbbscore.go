@@ -2,6 +2,7 @@ package cbbscore
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 
@@ -9,38 +10,58 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/lib/dcmd"
 )
 
-type NextEvent struct {
-	Name         string         `json:"name"`
-	Competitions []Competitions `json:"competitions"`
-}
+// type NextEvent struct {
+// 	Name         string         `json:"name"`
+// 	Competitions []Competitions `json:"competitions"`
+// }
 
-type Competitions struct {
-	Notes      []Notes      `json:"notes"`
-	Broadcasts []Broadcasts `json:"broadcasts"`
-	Status     Status       `json:"status"`
-}
+// type Competitions struct {
+// 	Notes      []Notes      `json:"notes"`
+// 	Broadcasts []Broadcasts `json:"broadcasts"`
+// 	Status     Status       `json:"status"`
+// }
 
-type Notes struct {
-	Headline string `json:"headline"`
-}
+// type Notes struct {
+// 	Headline string `json:"headline"`
+// }
 
-type Broadcasts struct {
-	Media Media `json:"media"`
-}
+// type Broadcasts struct {
+// 	Media Media `json:"media"`
+// }
 
-type Media struct {
-	ShortName string `json:"shortName"`
-}
+// type Media struct {
+// 	ShortName string `json:"shortName"`
+// }
 
-type Status struct {
-	Clock  float64 `json:"clock"`
-	Period int     `json:"period"`
-	Type   Type    `json:"type"`
-}
+// type Status struct {
+// 	Clock  float64 `json:"clock"`
+// 	Period int     `json:"period"`
+// 	Type   Type    `json:"type"`
+// }
 
-type Type struct {
-	Description string `json:"description"`
-	ShortDetail string `json:"shortDetail"`
+// type Type struct {
+// 	Description string `json:"description"`
+// 	ShortDetail string `json:"shortDetail"`
+// }
+
+type Output struct {
+	Team struct {
+		NextEvent []struct {
+			Name         string `json:"name"`
+			Competitions []struct {
+				Broadcasts []struct {
+					Media struct {
+						ShortName string `json:"shortName"`
+					} `json:"media"`
+				} `json:"broadcasts"`
+				Status struct {
+					Type struct {
+						ShortDetail string `json:"shortDetail"`
+					} `json:"type"`
+				} `json:"status"`
+			} `json:"competitions"`
+		} `json:"nextEvent"`
+	} `json:"team"`
 }
 
 var Command = &commands.YAGCommand{
@@ -63,11 +84,19 @@ var Command = &commands.YAGCommand{
 		if err != nil {
 			return nil, err
 		}
-
-		msg := fmt.Printf("Game: %s TV: %s\n Scheduled for: %s",
-			resp.Body(NextEvent).Name,
-			resp.Body(Broadcasts).Media,
-			resp.Body(Type).ShortDetail,
-		)
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return
+		}
+		output := &Output{}
+		err = json.Unmarshall([]byte(body), &output)
+		if err != nil {
+			return
+		}
+		msg := fmt.Printf("%+v\n", output)
+		fmt.Printf("%s\n", output.Team.NextEvent[0].Name)
+		fmt.Printf("%s\n", output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName)
+		fmt.Printf("%s\n", output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail)
 	},
 }
