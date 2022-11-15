@@ -132,7 +132,7 @@ var Command = &commands.YAGCommand{
 		if err != nil {
 			return nil, err
 		}
-		color, err := strconv.ParseInt(output.Team.Color, 16, 16)
+		color, err := strconv.ParseInt(output.Team.Color, 16, 64)
 		if err != nil {
 			return nil, err
 		}
