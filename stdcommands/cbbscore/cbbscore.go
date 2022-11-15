@@ -133,8 +133,8 @@ type Output struct {
 }
 
 type Score struct {
-	Id           string `json:"ID"`
-	ShortName    string `json:"shortName"`
+	Id           string `json:"id"`
+	ShortName    string `json:"shortname"`
 	Competitions []struct {
 		Status []struct {
 			Clock        string `json:"clock"`
@@ -142,12 +142,12 @@ type Score struct {
 			Period       string `json:"period"`
 			Type         []struct {
 				Completed bool `json:"completed"`
-			} `json:"type"`
-		} `json:"status"`
+			} `json:"Type"`
+		} `json:"Status"`
 		Competitors []struct {
 			Score string `json:"score"`
 			Team  []struct {
-				Displayname string `json:"displayName"`
+				Displayname string `json:"shortdisplayname"`
 			} `json:"team"`
 		} `json:"competitors"`
 	} `json:"competitions"`
