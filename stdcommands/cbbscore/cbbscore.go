@@ -139,9 +139,12 @@ var Command = &commands.YAGCommand{
 
 		embed := &discordgo.MessageEmbed{
 			Title:       fmt.Sprintf("Game: %s", output.Team.NextEvent[0].Name),
-			Description: fmt.Sprintf("%s TV: %s\n Scheduled for: %s",output.Team.NextEvent[0].Competitions[0].Notes.Headline, output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail),
+			Description: fmt.Sprintf("%s TV: %s\n Scheduled for: %s", output.Team.NextEvent[0].Competitions[0].Notes[0].Headline, output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail),
 			Color:       int(color),
-			Thumbnail:	 &discordgo.MessageEmbedImage{URL: output.Team.Logos.Href,}
+			Thumbnail: &discordgo.MessageEmbedThumbnail{
+				URL: output.Team.Logos[0].Href,
+			},
+		}
 		return embed, nil
 	},
 }
@@ -173,14 +176,14 @@ func apiSearch(addr string) (*Output, error) {
 
 type Output struct {
 	Team struct {
-		Color     string `json:"color"`
+		Color string `json:"color"`
 		Logos []struct {
 			Href string `json:"href"`
 		} `json:"Logos"`
 		NextEvent []struct {
 			Name         string `json:"name"`
 			Competitions []struct {
-				Notes	[]struct {
+				Notes []struct {
 					Headline string `json:"notes"`
 				} `json:"Notes"`
 				Broadcasts []struct {
