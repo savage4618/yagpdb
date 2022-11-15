@@ -182,7 +182,7 @@ type Output struct {
 			Competitions []struct {
 				Notes	[]struct {
 					Headline string `json:"notes"`
-				}
+				} `json:"Notes"`
 				Broadcasts []struct {
 					Media struct {
 						ShortName string `json:"shortName"`
