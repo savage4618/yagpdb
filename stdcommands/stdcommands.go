@@ -10,6 +10,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/banserver"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/calc"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/catfact"
+	"github.com/botlabs-gg/yagpdb/v2/stdcommands/cbbscore"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/ccreqs"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/createinvite"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/currentshard"
@@ -19,8 +20,8 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/dcallvoice"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/define"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/dogfact"
-	"github.com/botlabs-gg/yagpdb/v2/stdcommands/forex"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/findserver"
+	"github.com/botlabs-gg/yagpdb/v2/stdcommands/forex"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/globalrl"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/guildunavailable"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/howlongtobeat"
@@ -83,6 +84,7 @@ func (p *Plugin) AddCommands() {
 		calc.Command,
 		topic.Command,
 		catfact.Command,
+		cbbscore.Command,
 		dadjoke.Command,
 		dogfact.Command,
 		advice.Command,
