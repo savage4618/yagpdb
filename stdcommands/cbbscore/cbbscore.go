@@ -126,20 +126,28 @@ var Command = &commands.YAGCommand{
 	DefaultEnabled:      true,
 	RequiredArgs:        1,
 	RunFunc: func(data *dcmd.Data) (interface{}, error) {
-		addr := "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/" + data.Args[0].Str()
-
-		output, err := apiSearch(addr)
+		addrTeam := "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/" + data.Args[0].Str()
+		
+		output, err := apiTeamSearch(addrTeam)
 		if err != nil {
 			return nil, err
 		}
+
+		addrScore := "http://site/api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard/" + output.Team.NextEvent[0].Id
+
+		score, err := apiTeamSearch(addrScore)
+		if err != nil {
+			return nil, err
+		}
+
 		color, err := strconv.ParseInt(output.Team.Color, 16, 64)
 		if err != nil {
 			return nil, err
-		}
+		}		
 
 		embed := &discordgo.MessageEmbed{
 			Title:       fmt.Sprintf("Game: %s", output.Team.NextEvent[0].Name),
-			Description: fmt.Sprintf("%s TV: %s\n Scheduled for: %s", output.Team.NextEvent[0].Competitions[0].Notes[0].Headline, output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail),
+			Description: fmt.Sprintf("%s TV: %s\n Scheduled for: %s\n %s %s - %s %s (%s %s)", output.Team.NextEvent[0].Competitions[0].Notes[0].Headline, output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail, score.),
 			Color:       int(color),
 			Thumbnail: &discordgo.MessageEmbedThumbnail{
 				URL: output.Team.Logos[0].Href,
@@ -149,8 +157,8 @@ var Command = &commands.YAGCommand{
 	},
 }
 
-func apiSearch(addr string) (*Output, error) {
-	resp, err := http.Get(addr)
+func apiTeamSearch(addrTeam string) (*Output, error) {
+	resp, err := http.Get(addrTeam)
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +182,31 @@ func apiSearch(addr string) (*Output, error) {
 
 }
 
+func apiScoreSearch(addrScore string) (*Score, error) {
+	resp, err := http.Get(addrScore)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	score := &Score{}
+	err = json.Unmarshal([]byte(body), &score)
+	if err != nil {
+		return nil, err
+	}
+	return score, nil
+
+}
+
 type Output struct {
 	Team struct {
 		Color string `json:"color"`
@@ -181,6 +214,7 @@ type Output struct {
 			Href string `json:"href"`
 		} `json:"Logos"`
 		NextEvent []struct {
+			Id string `json:"id"`
 			Name         string `json:"name"`
 			Competitions []struct {
 				Notes []struct {
@@ -199,4 +233,25 @@ type Output struct {
 			} `json:"competitions"`
 		} `json:"nextEvent"`
 	} `json:"team"`
+}
+
+type Score struct {
+	Id string `json:"ID"`
+	ShortName string `json:"shortName"`
+	Competitions []struct {
+		Status []struct {
+			Clock string `json:"clock"`
+			Displayclock string `json:"displayClock"`
+			Period string `json:"period"`
+			Type []struct {
+				Completed bool `json:"completed"`
+			} `json:"type"`
+		} `json:"status"`
+		Competitors []struct {
+			Score string `json:"score"`
+			Team []struct{
+				Displayname string `json:"displayName"`
+			} `json:"team"`
+		} `json:"competitors"`
+	} `json:"competitions"`
 }
