@@ -138,7 +138,7 @@ var Command = &commands.YAGCommand{
 		}
 
 		embed := &discordgo.MessageEmbed{
-			Title:       "Test Title",
+			Title:       fmt.Sprintf("Game: %s", output.Team.NextEvent[0].Name),
 			Description: fmt.Sprintf("Game: %s\n TV: %s\n Scheduled for: %s", output.Team.NextEvent[0].Name, output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail),
 			Color:       int(color),
 		}
