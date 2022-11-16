@@ -138,7 +138,7 @@ type Score struct {
 	Competitions []struct {
 		Status struct {
 			Displayclock string `json:"displayClock"`
-			Period       string `json:"period"`
+			Period       int    `json:"period"`
 			Type         struct {
 				Completed bool `json:"completed"`
 			} `json:"Type"`
