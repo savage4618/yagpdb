@@ -44,12 +44,10 @@ var Command = &commands.YAGCommand{
 
 		embed := &discordgo.MessageEmbed{
 			Title:       fmt.Sprintf("Game: %s", output.Team.NextEvent[0].Name),
-			Description: fmt.Sprintf("%s TV: %s\n Scheduled for: %s\n %s %s - %s %s (%s %d)", output.Team.NextEvent[0].Competitions[0].Notes[0].Headline, output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail, score.Competitions[0].Competitors[0].Team.Name, score.Competitions[0].Competitors[0].Score, score.Competitions[0].Competitors[1].Team.Name, score.Competitions[0].Competitors[1].Score, score.Competitions[0].Status.Displayclock, score.Competitions[0].Status.Period),
+			Description: fmt.Sprintf("TV: %s\n %s\n %s %s - %s %s ", output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail, score.Competitions[0].Competitors[0].Team.Name, score.Competitions[0].Competitors[0].Score, score.Competitions[0].Competitors[1].Team.Name, score.Competitions[0].Competitors[1].Score),
 			Color:       int(color),
-			Thumbnail: &discordgo.MessageEmbedThumbnail{
-				URL: output.Team.Logos[0].Href,
-			},
 		}
+
 		return embed, nil
 	},
 }
@@ -114,9 +112,6 @@ type Output struct {
 			Id           string `json:"id"`
 			Name         string `json:"name"`
 			Competitions []struct {
-				Notes []struct {
-					Headline string `json:"notes"`
-				} `json:"Notes"`
 				Broadcasts []struct {
 					Media struct {
 						ShortName string `json:"shortName"`
@@ -125,6 +120,7 @@ type Output struct {
 				Status struct {
 					Type struct {
 						ShortDetail string `json:"shortDetail"`
+						Description string `json:"description"`
 					} `json:"type"`
 				} `json:"status"`
 			} `json:"competitions"`
