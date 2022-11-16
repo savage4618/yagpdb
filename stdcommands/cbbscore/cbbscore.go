@@ -44,7 +44,7 @@ var Command = &commands.YAGCommand{
 
 		embed := &discordgo.MessageEmbed{
 			Title:       fmt.Sprintf("Game: %s", output.Team.NextEvent[0].Name),
-			Description: fmt.Sprintf("%s TV: %s\n Scheduled for: %s\n %s %s - %s %s (%s %s)", output.Team.NextEvent[0].Competitions[0].Notes[0].Headline, output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail, score.Competitions[0].Competitors[0].Team.Name, score.Competitions[0].Competitors[0].Score, score.Competitions[0].Competitors[1].Team.Name, score.Competitions[0].Competitors[1].Score, score.Competitions[0].Status[0].Displayclock, score.Competitions[0].Status[0].Period),
+			Description: fmt.Sprintf("%s TV: %s\n Scheduled for: %s\n %s %s - %s %s (%s %s)", output.Team.NextEvent[0].Competitions[0].Notes[0].Headline, output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail, score.Competitions[0].Competitors[0].Team.Name, score.Competitions[0].Competitors[0].Score, score.Competitions[0].Competitors[1].Team.Name, score.Competitions[0].Competitors[1].Score, score.Competitions[0].Status.Displayclock, score.Competitions[0].Status.Period),
 			Color:       int(color),
 			Thumbnail: &discordgo.MessageEmbedThumbnail{
 				URL: output.Team.Logos[0].Href,
@@ -136,11 +136,11 @@ type Score struct {
 	Id           string `json:"id"`
 	ShortName    string `json:"shortname"`
 	Competitions []struct {
-		Status []struct {
+		Status struct {
 			Clock        string `json:"clock"`
 			Displayclock string `json:"displayClock"`
 			Period       string `json:"period"`
-			Type         []struct {
+			Type         struct {
 				Completed bool `json:"completed"`
 			} `json:"Type"`
 		} `json:"Status"`
