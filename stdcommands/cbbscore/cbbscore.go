@@ -42,9 +42,14 @@ var Command = &commands.YAGCommand{
 			return nil, err
 		}
 
+		broadcast := "not available"
+		if !(len(output.Team.NextEvent[0].Competitions[0].Broadcasts) == 0) {
+			broadcast = output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName
+		}
+
 		embed := &discordgo.MessageEmbed{
 			Title:       fmt.Sprintf("Game: %s", output.Team.NextEvent[0].Name),
-			Description: fmt.Sprintf("TV: %s\n %s\n %s %s - %s %s ", output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail, score.Competitions[0].Competitors[0].Team.Name, score.Competitions[0].Competitors[0].Score, score.Competitions[0].Competitors[1].Team.Name, score.Competitions[0].Competitors[1].Score),
+			Description: fmt.Sprintf("TV: %s\n %s\n %s %s - %s %s ", broadcast, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail, score.Competitions[0].Competitors[0].Team.Name, score.Competitions[0].Competitors[0].Score, score.Competitions[0].Competitors[1].Team.Name, score.Competitions[0].Competitors[1].Score),
 			Color:       int(color),
 		}
 
@@ -59,7 +64,9 @@ func apiTeamSearch(addrTeam string) (*Output, error) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
+	if resp.StatusCode == 502 {
+		return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode, "You probably entered an invalid team. There will be a fix for this at some point.")
+	} else if resp.StatusCode != 200 {
 		return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode)
 	}
 
