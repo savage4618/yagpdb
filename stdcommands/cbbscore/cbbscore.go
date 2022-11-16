@@ -137,7 +137,6 @@ type Score struct {
 	ShortName    string `json:"shortname"`
 	Competitions []struct {
 		Status struct {
-			Clock        string `json:"clock"`
 			Displayclock string `json:"displayClock"`
 			Period       string `json:"period"`
 			Type         struct {
