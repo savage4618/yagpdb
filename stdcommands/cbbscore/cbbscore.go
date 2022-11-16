@@ -145,10 +145,10 @@ type Score struct {
 			} `json:"Type"`
 		} `json:"Status"`
 		Competitors []struct {
-			Score string `json:"score"`
-			Team  []struct {
+			Team []struct {
 				Name string `json:"shortdisplayname"`
 			} `json:"team"`
+			Score string `json:"score"`
 		} `json:"competitors"`
 	} `json:"competitions"`
 }
