@@ -53,5 +53,4 @@ func ExampleApplication() {
 	err = dg.ApplicationDelete(ap.ID)
 	log.Printf("Delete: err: %+v\n", err)
 
-	return
 }

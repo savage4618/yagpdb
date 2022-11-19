@@ -100,7 +100,7 @@ func getComic(number ...int64) (*Xkcd, error) {
 		return nil, err
 	}
 
-	req.Header.Set("User-Agent", "curl/7.65.1")
+	req.Header.Set("User-Agent", "RandomDad.xyz (https://github.com/savage4618/yagpdb)")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
