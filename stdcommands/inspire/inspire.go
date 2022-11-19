@@ -78,7 +78,7 @@ func inspireFromAPI(mindfulnessMode bool) (string, error) {
 		return "", err
 	}
 
-	req.Header.Set("User-Agent", "RandomDad.xyz (https://github.com/savage4618/yagpdb)")
+	req.Header.Set("User-Agent", "YAGPDB.xyz (https://github.com/botlabs-gg/yagpdb)")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		return "", err
