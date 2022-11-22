@@ -15,6 +15,7 @@ import (
 var Command = &commands.YAGCommand{
 	CmdCategory: commands.CategoryFun,
 	Name:        "cbbscore",
+	Aliases: []string{"score","bbscore","yobitchwhatsthescore"},
 	Description: "College Basketball Scores",
 	Arguments: []*dcmd.ArgDef{
 		{Name: "Team", Type: dcmd.String},
