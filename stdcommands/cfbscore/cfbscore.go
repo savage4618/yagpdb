@@ -1,4 +1,4 @@
-package cbbscore
+package cfbscore
 
 import (
 	"encoding/json"
@@ -14,9 +14,9 @@ import (
 
 var Command = &commands.YAGCommand{
 	CmdCategory: commands.CategoryFun,
-	Name:        "cbbscore",
-	Aliases:     []string{"bbscore", "yobitchwhatsthescoreofthebasketballgame"},
-	Description: "College Basketball Scores",
+	Name:        "cfbscore",
+	Aliases:     []string{"fbscore", "yobitchwhatsthescoreofthefootballgame"},
+	Description: "College Football Scores",
 	Arguments: []*dcmd.ArgDef{
 		{Name: "Team", Type: dcmd.String},
 	},
@@ -24,14 +24,14 @@ var Command = &commands.YAGCommand{
 	DefaultEnabled:      true,
 	RequiredArgs:        1,
 	RunFunc: func(data *dcmd.Data) (interface{}, error) {
-		addrTeam := "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/" + data.Args[0].Str()
+		addrTeam := "https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/" + data.Args[0].Str()
 
 		output, err := apiTeamSearch(addrTeam)
 		if err != nil {
 			return nil, err
 		}
 		eventID := output.Team.NextEvent[0].Id
-		addrScore := "http://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/scoreboard/" + eventID
+		addrScore := "http://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard/" + eventID
 
 		score, err := apiScoreSearch(addrScore)
 		if err != nil {

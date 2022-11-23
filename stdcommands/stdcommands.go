@@ -12,6 +12,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/catfact"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/cbbscore"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/ccreqs"
+	"github.com/botlabs-gg/yagpdb/v2/stdcommands/cfbscore"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/createinvite"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/currentshard"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/currenttime"
@@ -86,6 +87,7 @@ func (p *Plugin) AddCommands() {
 		topic.Command,
 		catfact.Command,
 		cbbscore.Command,
+		cfbscore.Command,
 		dadjoke.Command,
 		dogfact.Command,
 		advice.Command,
