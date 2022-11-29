@@ -84,23 +84,9 @@
         </div>
 
         <script>
-            $(function() {
-                loadWidget("server-selection", {
-                        {
-                            if and.ActiveGuild.IsAdmin
-                        }
-                    }
-                    "/manage/{{.ActiveGuild.ID}}/guild_selection" {
-                        {
-                            else
-                        }
-                    }
-                    "/guild_selection" {
-                        {
-                            end
-                        }
-                    });
-            });
+        $(function(){
+            loadWidget("server-selection", {{if and .ActiveGuild .IsAdmin}}"/manage/{{.ActiveGuild.ID}}/guild_selection"{{else}}"/guild_selection"{{end}});
+        });
         </script>
 
         <span class="separator"></span>
