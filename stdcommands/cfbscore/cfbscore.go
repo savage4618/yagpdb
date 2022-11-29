@@ -30,6 +30,7 @@ var Command = &commands.YAGCommand{
 		if err != nil {
 			return nil, err
 		}
+
 		eventID := output.Team.NextEvent[0].Id
 		addrScore := "http://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard/" + eventID
 
@@ -134,7 +135,7 @@ type Output struct {
 					} `json:"type"`
 				} `json:"status"`
 			} `json:"competitions"`
-		} `json:"nextEvent"`
+		} `json:"nextEvent,omitempty"`
 	} `json:"team"`
 }
 
