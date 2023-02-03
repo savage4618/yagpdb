@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/feeds"
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
 	"github.com/botlabs-gg/yagpdb/v2/web/discorddata"
+	"github.com/jinzhu/gorm"
 	"github.com/mediocregopher/radix/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	"google.golang.org/api/option"
@@ -164,6 +166,8 @@ func (p *Plugin) sendNewVidMessage(sub *ChannelSubscription, video *youtube.Vide
 	switch video.Snippet.LiveBroadcastContent {
 	case "live":
 		content = fmt.Sprintf("**%s** started a livestream now!\n%s", video.Snippet.ChannelTitle, videoUrl)
+	case "upcoming":
+		content = fmt.Sprintf("**%s** is going to be live soon!\n%s", video.Snippet.ChannelTitle, videoUrl)
 	case "none":
 		content = fmt.Sprintf("**%s** uploaded a new youtube video!\n%s", video.Snippet.ChannelTitle, videoUrl)
 	default:
@@ -172,32 +176,57 @@ func (p *Plugin) sendNewVidMessage(sub *ChannelSubscription, video *youtube.Vide
 
 	parseMentions := []discordgo.AllowedMentionType{}
 	err := common.GORM.Model(&YoutubeAnnouncements{}).Where("guild_id = ?", parsedGuild).First(&announcement).Error
+	hasCustomAnnouncement := true
 	if err != nil {
-		logger.WithError(err).Debugf("Failed fetching youtube message from db for guild_id %d", parsedGuild)
-	} else if *announcement.Enabled && len(announcement.Message) > 0 {
+		hasCustomAnnouncement = false
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			logger.WithError(err).Debugf("Custom announcement doesn't exist for guild_id %d", parsedGuild)
+		} else {
+			logger.WithError(err).Errorf("Failed fetching custom announcement for guild_id %d", parsedGuild)
+		}
+	}
+
+	if hasCustomAnnouncement && *announcement.Enabled && len(announcement.Message) > 0 {
 		guildState, err := discorddata.GetFullGuild(parsedGuild)
 		if err != nil {
 			logger.WithError(err).Errorf("Failed to get guild state for guild_id %d", parsedGuild)
 			return
 		}
+
 		if guildState == nil {
 			logger.Errorf("guild_id %d not found in state for youtube feed", parsedGuild)
+			p.DisableGuildFeeds(parsedGuild)
 			return
 		}
+
 		channelState := guildState.GetChannel(parsedChannel)
 		if channelState == nil {
 			logger.Errorf("channel_id %d for guild_id %d not found in state for youtube feed", parsedChannel, parsedGuild)
+			p.DisableChannelFeeds(parsedChannel)
 			return
 		}
+
 		ctx := templates.NewContext(guildState, channelState, nil)
+		videoDurationString := strings.ToLower(strings.TrimPrefix(video.ContentDetails.Duration, "PT"))
+		videoDuration, err := common.ParseDuration(videoDurationString)
+		if err != nil {
+			videoDuration = time.Duration(0)
+		}
+
 		ctx.Data["URL"] = videoUrl
 		ctx.Data["ChannelName"] = sub.YoutubeChannelName
+		ctx.Data["ChannelID"] = sub.ChannelID
+		//should be true for upcoming too as upcoming is also technically a livestream
+		ctx.Data["IsLiveStream"] = (video.Snippet.LiveBroadcastContent == "live" || video.Snippet.LiveBroadcastContent == "upcoming")
+		ctx.Data["IsUpcoming"] = video.Snippet.LiveBroadcastContent == "upcoming"
 		ctx.Data["VideoID"] = video.Id
 		ctx.Data["VideoTitle"] = video.Snippet.Title
 		ctx.Data["VideoThumbnail"] = fmt.Sprintf("https://img.youtube.com/vi/%s/maxresdefault.jpg", video.Id)
 		ctx.Data["VideoDescription"] = video.Snippet.Description
-		ctx.Data["ChannelID"] = sub.ChannelID
-		ctx.Data["IsLiveStream"] = video.Snippet.LiveBroadcastContent == "live"
+		ctx.Data["VideoDurationSeconds"] = int(math.Round(videoDuration.Seconds()))
+		//full video object in case people want to do more advanced stuff
+		ctx.Data["Video"] = video
+
 		content, err = ctx.Execute(announcement.Message)
 		//adding role and everyone ping here because most people are stupid and will complain about custom notification not pinging
 		parseMentions = []discordgo.AllowedMentionType{discordgo.AllowedMentionTypeRoles, discordgo.AllowedMentionTypeEveryone}
@@ -250,7 +279,12 @@ var (
 )
 
 func (p *Plugin) parseYtUrl(url string) (t ytUrlType, id string, err error) {
-	if ytVideoUrlRegex.MatchString(url) {
+	if ytUrlShortRegex.MatchString(url) {
+		capturingGroups := ytUrlShortRegex.FindAllStringSubmatch(url, -1)
+		if len(capturingGroups) > 0 && len(capturingGroups[0]) > 0 && len(capturingGroups[0][2]) > 0 {
+			return ytUrlTypeVideo, capturingGroups[0][2], nil
+		}
+	} else if ytVideoUrlRegex.MatchString(url) {
 		capturingGroups := ytVideoUrlRegex.FindAllStringSubmatch(url, -1)
 		if len(capturingGroups) > 0 && len(capturingGroups[0]) > 0 && len(capturingGroups[0][4]) > 0 {
 			return ytUrlTypeVideo, capturingGroups[0][4], nil
@@ -292,8 +326,7 @@ func (p *Plugin) getYtChannel(url string) (channel *youtube.Channel, err error) 
 		channelListCall = channelListCall.Id(id)
 	case ytUrlTypeUser:
 		channelListCall = channelListCall.ForUsername(id)
-	case ytUrlTypeCustom:
-	case ytUrlTypeHandle:
+	case ytUrlTypeCustom, ytUrlTypeHandle:
 		searchListCall := p.YTService.Search.List([]string{"snippet"})
 		searchListCall = searchListCall.Q(id).Type("channel")
 		sResp, err := searchListCall.Do()
@@ -499,7 +532,7 @@ func (p *Plugin) isShortsVideo(video *youtube.Video) bool {
 }
 
 func (p *Plugin) isShortsRedirect(videoId string) bool {
-	shortsUrl := fmt.Sprintf("https://www.youtube.com/shorts/%s", videoId)
+	shortsUrl := fmt.Sprintf("https://www.youtube.com/shorts/%s?ucbcb=1", videoId)
 	client := &http.Client{
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -538,17 +571,18 @@ func (p *Plugin) postVideo(subs []*ChannelSubscription, publishedAt time.Time, v
 	}
 
 	isLivestream := contentType == "live"
+	isUpcoming := contentType == "upcoming"
 	isShortsCheckDone := false
 	isShorts := false
 
 	for _, sub := range subs {
 		if *sub.Enabled {
-			if isLivestream && !*sub.PublishLivestream {
+			if (isLivestream || isUpcoming) && !*sub.PublishLivestream {
 				continue
 			}
 
 			//no need to check for shorts for a livestream
-			if !isLivestream && !*sub.PublishShorts {
+			if !(isLivestream || isUpcoming) && !*sub.PublishShorts {
 				//check if a video is a short only when seeing the first shorts disabled subscription
 				//and cache in "isShorts" to reduce requests to youtube to check for shorts.
 				if !isShortsCheckDone {
