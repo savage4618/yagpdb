@@ -61,7 +61,7 @@ func (r *Reminder) Trigger() error {
 
 	logger.WithFields(logrus.Fields{"channel": r.ChannelID, "user": r.UserID, "message": r.Message, "id": r.ID}).Info("Triggered reminder")
 	embed := &discordgo.MessageEmbed{
-		Title:       "Reminder from YAGPDB",
+		Title:       "Reminder from RandomDadGPDB",
 		Description: common.ReplaceServerInvites(r.Message, r.GuildID, "(removed-invite)"),
 	}
 
