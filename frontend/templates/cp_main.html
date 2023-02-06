@@ -21,17 +21,17 @@
     <meta name="theme-color" content="#ffffff">
 
     <!-- More meta stuff -->
-    <meta name="apple-mobile-web-app-title" content="YAGPDB">
-    <meta name="application-name" content="YAGPDB">
+    <meta name="apple-mobile-web-app-title" content="RandomDadGPDB">
+    <meta name="application-name" content="RandomDadGPDB">
     <meta name="msapplication-config" content="/static/icons/browserconfig.xml">
     <meta name="theme-color" content="#ffffff">
 
-    <meta property="og:title" content="YAGPDB" />
-    <meta property="og:description" content="Yet Another General Purpose Discord Bot" />
+    <meta property="og:title" content="RandomDadGPDB" />
+    <meta property="og:description" content="Random Dad General Purpose Discord Bot" />
 
-    <title>YAGPDB - Control panel</title>
-    <meta name="keywords" content="YAGPDB Discord bot control panel" />
-    <meta name="description" content="YAGPDB - Yet Another General Purpose Discord Bot">
+    <title>RandomDadGPDB - Control panel</title>
+    <meta name="keywords" content="RandomDadGPDB Discord bot control panel" />
+    <meta name="description" content="RandomDadGPDB - Yet Another General Purpose Discord Bot">
     <meta name="author" content="jonas747">
 
     <!-- Web Fonts  -->
@@ -64,15 +64,14 @@
 
     <script src="/static/vendorr/jquery/jquery.js"></script>
 
-    {{if .ExtraHead}}
-        {{.ExtraHead}}
-    {{end}}
+    {{if .ExtraHead}} {{.ExtraHead}} {{end}}
 
     <!-- Sam is an okay guy i think, i was forced to say this -->
     <!-- deus name is actually dave -->
     <!-- What are these comments even they are wasted bandwidth, thats what they are -->
     <!-- The current time is 4:14 am on the 21st of may, maybe i just like adding onto this whenever i come across this section after forgetting about it? -->
 </head>
+
 <body>
     <div id="loading-overlay">
         <section class="card">
@@ -93,9 +92,7 @@
             {{template "cp_nav_sidebar" .}}
 
             <section role="main" id="main-content" class="content-body">
-{{end}}{{end}}
-
-{{define "cp_footer"}}{{if not .PartialRequest}}
+                {{end}}{{end}} {{define "cp_footer"}}{{if not .PartialRequest}}
             </section>
         </div>
     </section>
@@ -103,73 +100,94 @@
         <div id="unsaved-changes-popup-container">
             <p id="unsaved-changes-message" class="mb-0">blablablablabla</p>
             <input id="unsaved-changes-save-button" type="button" class="btn btn-success ml-3" value="Save!" onclick="saveUnsavedChanges()">
-        </p>
-    </div>
+            </p>
+        </div>
 
-    <script>
-    var visibleURL;
-    {{if .VisibleURL }}visibleURL = {{.VisibleURL}};{{end}}
-    {{if .ActiveGuild}}
-    var CURRENT_GUILDID="{{.ActiveGuild.ID}}";
-    {{end}}
-    </script>
+        <script>
+            var visibleURL; {
+                {
+                    if .VisibleURL
+                }
+            }
+            visibleURL = {
+                {.VisibleURL
+                }
+            }; {
+                {
+                    end
+                }
+            } {
+                {
+                    if .ActiveGuild
+                }
+            }
+            var CURRENT_GUILDID = "{{.ActiveGuild.ID}}"; {
+                {
+                    end
+                }
+            }
+        </script>
 
-    <!-- Vendor -->
-    <script src="/static/vendorr/jquery-browser-mobile/jquery.browser.mobile.js"></script>
-    <script src="/static/vendorr/popper/umd/popper.min.js"></script>
-    <script src="/static/vendorr/bootstrap/js/bootstrap.min.js"></script>
-    <script src="/static/vendorr/bootstrap-datepicker/js/bootstrap-datepicker.min.js"></script>
-    <script src="/static/vendorr/common/common.js"></script>
-    <script src="/static/vendorr/nanoscroller/nanoscroller.js"></script>
-    <script src="/static/vendorr/magnific-popup/jquery.magnific-popup.js"></script>
-    <script src="/static/vendorr/jquery-placeholder/jquery-placeholder.js"></script>
-    <script src="/static/vendorr/select2/js/select2.js"></script>
-    <script src="/static/vendorr/bootstrap-multiselect/bootstrap-multiselect.js?4"></script>
-    <script src="/static/vendorr/pnotify/pnotify.custom.js"></script>
+        <!-- Vendor -->
+        <script src="/static/vendorr/jquery-browser-mobile/jquery.browser.mobile.js"></script>
+        <script src="/static/vendorr/popper/umd/popper.min.js"></script>
+        <script src="/static/vendorr/bootstrap/js/bootstrap.min.js"></script>
+        <script src="/static/vendorr/bootstrap-datepicker/js/bootstrap-datepicker.min.js"></script>
+        <script src="/static/vendorr/common/common.js"></script>
+        <script src="/static/vendorr/nanoscroller/nanoscroller.js"></script>
+        <script src="/static/vendorr/magnific-popup/jquery.magnific-popup.js"></script>
+        <script src="/static/vendorr/jquery-placeholder/jquery-placeholder.js"></script>
+        <script src="/static/vendorr/select2/js/select2.js"></script>
+        <script src="/static/vendorr/bootstrap-multiselect/bootstrap-multiselect.js?4"></script>
+        <script src="/static/vendorr/pnotify/pnotify.custom.js"></script>
 
-    <!-- Theme Base, Components and Settings -->
-    <script src="/static/js/theme.js"></script>
+        <!-- Theme Base, Components and Settings -->
+        <script src="/static/js/theme.js"></script>
 
-    <!-- Theme Custom -->
-    <script src="/static/js/custom.js"></script>
+        <!-- Theme Custom -->
+        <script src="/static/js/custom.js"></script>
 
-    <!-- Theme Initialization Files -->
-    <script src="/static/js/theme.init.js"></script>
+        <!-- Theme Initialization Files -->
+        <script src="/static/js/theme.init.js"></script>
 
-    <script src="/static/js/spongebob.js?{{.StartedAtUnix}}"></script>
+        <script src="/static/js/spongebob.js?{{.StartedAtUnix}}"></script>
 
-    {{template "googleAnalytics" .}}
+        {{template "googleAnalytics" .}}
 </body>
 
 <script>
     var observer = new MutationObserver(function(mutations) {
-        $("a").filter(function(){
+        $("a").filter(function() {
             return this.host !== location.host
-        }).attr("target","_blank");
+        }).attr("target", "_blank");
     });
-    observer.observe(document.querySelector("body"), { childList: true, subtree: true });
+    observer.observe(document.querySelector("body"), {
+        childList: true,
+        subtree: true
+    });
 </script>
 
 </html>
-{{end}}{{end}}
-
-{{/*Displays alerts*/}}
-{{define "cp_alerts"}}
+{{end}}{{end}} {{/*Displays alerts*/}} {{define "cp_alerts"}}
 <script>
-$(function(){
-    showAlerts("{{json .Alerts}}");
-    $.getJSON("https://srhpyqt94yxb.statuspage.io/api/v2/incidents/unresolved.json", function(data) {
-        if (data.incidents) {
-            data.incidents.forEach(function(incident) {
-                addAlert("warning", "Discord's " + incident.status + " an incident: " + incident.name + ". Functionality may be limited.");
-            })
-        }
-    });
+    $(function() {
+        showAlerts("{{json .Alerts}}");
+        $.getJSON("https://srhpyqt94yxb.statuspage.io/api/v2/incidents/unresolved.json", function(data) {
+            if (data.incidents) {
+                data.incidents.forEach(function(incident) {
+                    addAlert("warning", "Discord's " + incident.status + " an incident: " + incident.name + ". Functionality may be limited.");
+                })
+            }
+        });
 
-    {{if .ActiveGuild}}
+        {
+            {
+                if .ActiveGuild
+            }
+        }
         async function runShardOfflineChecker() {
             let wasOffline = await checkShardOffline();
-            setInterval(async () => {
+            setInterval(async() => {
                 const currentlyOffline = await checkShardOffline();
 
                 // To prevent spurious warnings during routine shard reconnections,
@@ -185,7 +203,7 @@ $(function(){
                 }
 
                 wasOffline = currentlyOffline;
-            }, 15_000);
+            }, 15 _000);
         }
 
         async function checkShardOffline() {
@@ -203,38 +221,34 @@ $(function(){
         }
 
         // Computing the shard number requires BigInt support.
-        if (typeof BigInt !== "undefined") runShardOfflineChecker();
-    {{end}}
-})
+        if (typeof BigInt !== "undefined") runShardOfflineChecker(); {
+            {
+                end
+            }
+        }
+    })
 </script>
 <div id="alerts">
     {{if .Alerts}}
     <div class="row">
         <div class="col-lg-12">
-            {{range .Alerts}}
-            {{if and (ne .Style "success") (ne .Style "danger")}}
+            {{range .Alerts}} {{if and (ne .Style "success") (ne .Style "danger")}}
             <div class="alert alert-{{.Style}}">
-                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button>
-                {{.Message}}
+                <button type="button" class="close" data-dismiss="alert" aria-hidden="true">×</button> {{.Message}}
             </div>
             {{end}}{{end}}
         </div>
     </div>
     {{end}}
 </div>
-{{end}}
-
-{{/*Help block for templating*/}}
-{{define "template_help"}}
-<p class="mb-0">To include the user or server in the message you can use the template data included.<br/>
-Some quick examples: <code>{{"{{"}}.User.Username{{"}}"}}</code> - will be replaced by username, <code>{{"{{"}}.Server.Name{{"}}"}}</code> - will be replaced by server name, <code>{{"{{"}}.User.ID{{"}}"}}</code> - the user's id and so on...<br/>
-For example, to mention a user, you would do <code><@{{"{{"}}.User.ID{{"}}"}}></code>.<br/>
-<a href="https://docs.yagpdb.xyz" target="_blank">See the documentation for more details</a>
+{{end}} {{/*Help block for templating*/}} {{define "template_help"}}
+<p class="mb-0">To include the user or server in the message you can use the template data included.<br/> Some quick examples: <code>{{"{{"}}.User.Username{{"}}"}}</code> - will be replaced by username, <code>{{"{{"}}.Server.Name{{"}}"}}</code> - will be replaced by
+    server name, <code>{{"{{"}}.User.ID{{"}}"}}</code> - the user's id and so on...<br/> For example, to mention a user, you would do <code><@{{"{{"}}.User.ID{{"}}"}}></code>.<br/>
+    <a href="https://docs.yagpdb.xyz" target="_blank">See the documentation for more details</a>
 </p>
-{{end}}
-
-{{/*Specific template helpers*/}}
-{{define "template_helper_user"}}<code>{{"{{"}}.User{{"}}"}}: <a href="https://docs.yagpdb.xyz/reference/templates#user"><code>.User</code> object documentation.</a></code>{{end}}
-{{define "template_helper_guild"}}<code>{{"{{"}}.Guild{{"}}"}}<a href="https://docs.yagpdb.xyz/reference/templates#guild-server"><code>.Guild</code> object reference.</a></code>{{end}}
-
-{{define "set_roles"}}<script>var activeGuildRoles = JSON.parse('{{json .ActiveGuild.Roles}}');</script>{{end}}
+{{end}} {{/*Specific template helpers*/}} {{define "template_helper_user"}}<code>{{"{{"}}.User{{"}}"}}: <a href="https://docs.yagpdb.xyz/reference/templates#user"><code>.User</code> object documentation.</a>
+</code>{{end}} {{define "template_helper_guild"}}<code>{{"{{"}}.Guild{{"}}"}}<a href="https://docs.yagpdb.xyz/reference/templates#guild-server"><code>.Guild</code> object reference.</a>
+</code>{{end}} {{define "set_roles"}}
+<script>
+    var activeGuildRoles = JSON.parse('{{json .ActiveGuild.Roles}}');
+</script>{{end}}
