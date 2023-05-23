@@ -9,9 +9,6 @@ require (
 	github.com/PuerkitoBio/goquery v1.5.0
 	github.com/buger/jsonparser v1.1.1
 	github.com/bwmarrin/snowflake v0.3.0
-	github.com/cenkalti/backoff v2.1.1+incompatible
-	github.com/dghubble/oauth1 v0.6.0
-	github.com/dghubble/sling v1.4.0
 	github.com/didip/tollbooth v4.0.2+incompatible
 	github.com/dpatrie/urbandictionary v0.0.0-20151214192647-3b38cbf4cb81
 	github.com/ei14/calc v0.0.0-20220307072502-adbe43bdf801
@@ -67,12 +64,12 @@ require (
 	github.com/volatiletech/sqlboiler/v4 v4.5.0
 	github.com/volatiletech/strmangle v0.0.1
 	goji.io v2.0.2+incompatible
-	golang.org/x/image v0.5.0
 	golang.org/x/crypto v0.1.0
-	golang.org/x/net v0.7.0
+	golang.org/x/image v0.5.0
+	golang.org/x/net v0.9.0
 	golang.org/x/oauth2 v0.0.0-20201208152858-08078c50e5b5
-	golang.org/x/sys v0.5.0 // indirect
-	golang.org/x/text v0.7.0
+	golang.org/x/sys v0.7.0 // indirect
+	golang.org/x/text v0.9.0
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	google.golang.org/api v0.40.0
@@ -84,7 +81,7 @@ require (
 	github.com/francoispqt/gojay v1.2.13
 	github.com/jarcoal/httpmock v1.0.4
 	github.com/justinian/dice v1.0.1
-	github.com/mtibben/confusables v0.0.0-20210201002637-9d1b0723b659
+	github.com/n0madic/twitter-scraper v0.0.0-20230323164130-5ff4cd0d1ba9
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f
 )
 
@@ -114,7 +111,6 @@ require (
 	github.com/go-playground/validator/v10 v10.4.1 // indirect
 	github.com/go-stack/stack v1.8.0 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
-	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/google/uuid v1.1.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
 	github.com/gorilla/css v1.0.0 // indirect
