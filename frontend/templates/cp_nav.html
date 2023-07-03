@@ -97,7 +97,7 @@
                     {{if .User.Avatar}}<img src="https://cdn.discordapp.com/avatars/{{.User.ID}}/{{.User.Avatar}}?size=64" alt="Joseph Doe" class="rounded-circle" data-lock-picture="img/!logged-user.jpg" />{{end}}
                 </figure>
                 <div class="profile-info" data-lock-name="{{.User.Username}}" data-lock-email="">
-                    <span class="name">{{.User.Username}}</span>
+                    <span class="name">{{or .User.Globalname .User.Username}}</span>
                     <span class="role">{{adjective | title}}</span>
                 </div>
 
