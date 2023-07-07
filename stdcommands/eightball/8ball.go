@@ -5,7 +5,6 @@ package eightball
 import (
 	"fmt"
 	"math/rand"
-	"time"
 
 	"github.com/botlabs-gg/yagpdb/v2/commands"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dcmd"
@@ -71,7 +70,6 @@ func Shake(data *dcmd.Data) string {
 		return ShakeFailureMessage
 	}
 
-	rand.Seed(time.Now().UnixNano())
 	return fmt.Sprintf("8-Ball says: %s",
 		magicAnswers[rand.Intn(len(magicAnswers))])
 }
