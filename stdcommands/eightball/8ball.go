@@ -70,6 +70,6 @@ func Shake(data *dcmd.Data) string {
 		return ShakeFailureMessage
 	}
 
-	return fmt.Sprintf("8-Ball says: %s",
+	return fmt.Sprintf(":8ball: says: %s",
 		magicAnswers[rand.Intn(len(magicAnswers))])
 }
