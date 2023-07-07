@@ -59,7 +59,7 @@ var Command = &commands.YAGCommand{
 
 	RunFunc: func(data *dcmd.Data) (interface{}, error) {
 		if data.SlashCommandTriggerData != nil {
-			return "You asked: " + data.Args[0].Str() + "\n" + Shake(data), nil
+			return ":question: : " + data.Args[0].Str() + "\n" + Shake(data), nil
 		}
 		return Shake(data), nil
 	},
@@ -70,6 +70,6 @@ func Shake(data *dcmd.Data) string {
 		return ShakeFailureMessage
 	}
 
-	return fmt.Sprintf(":8ball: says: %s",
+	return fmt.Sprintf(":8ball: : %s",
 		magicAnswers[rand.Intn(len(magicAnswers))])
 }
