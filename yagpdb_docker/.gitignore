@@ -1,2 +1,5 @@
 *.env
 credentials.json
+Dockerfile
+credentials.json
+*.yml
