@@ -80,7 +80,6 @@ require (
 	github.com/francoispqt/gojay v1.2.13
 	github.com/jarcoal/httpmock v1.0.4
 	github.com/justinian/dice v1.0.2
-	github.com/n0madic/twitter-scraper v0.0.0-20230711213008-94503a2bc36c
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 )
 
