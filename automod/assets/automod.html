@@ -1,4 +1,5 @@
-{{define "automod_index"}} {{template "cp_head" .}}
+{{define "automod_index"}}
+{{template "cp_head" .}}
 <header class="page-header">
     <h2>Advanced Automoderator</h2>
 </header>
@@ -6,52 +7,55 @@
 {{template "cp_alerts" .}}
 
 <style>
-    /* yes style is allowed in <body> as of around 2013 or something*/
-    
-    .automod-rule-part-table {
-        padding-top: 5px;
-        padding-bottom: 5px;
-        margin-top: 5px;
-        margin-bottom: 5px;
+/* yes style is allowed in <body> as of around 2013 or something*/
+.automod-rule-part-table{
+    padding-top: 5px;
+    padding-bottom: 5px;
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+.automod-options-column > div {
+   margin-top: 5px;
+}
+
+@media(min-width: 1024px) {
+    .automod-type-column {
+        width: 17em;
     }
-    
-    .automod-options-column>div {
-        margin-top: 5px;
+
+    .automod-options-column{
+        width: calc(100% - 20em);
     }
-    
-    @media(min-width: 1024px) {
-        .automod-type-column {
-            width: 17em;
-        }
-        .automod-options-column {
-            width: calc(100% - 20em);
-        }
+}
+
+@media(max-width: 1023px) {
+    .automod-type-column {
+        width: 12em;
     }
-    
-    @media(max-width: 1023px) {
-        .automod-type-column {
-            width: 12em;
-        }
-        .automod-options-column {
-            width: calc(100% - 15em);
-        }
-        .automod-options-column>div {
-            margin-bottom: 2em;
-        }
-        .form-check {
-            min-height: 1em;
-            margin-bottom: 1em;
-        }
+
+    .automod-options-column{
+        width: calc(100% - 15em);
     }
-    
-    .automod-delete-column {
-        width: 2.5em;
+    .automod-options-column > div {
+        margin-bottom: 2em;
     }
-    
-    table {
-        /*So turns out, apple devices does not like this?*/
-        /*table-layout: fixed;*/
+
+    .form-check{
+      min-height: 1em;
+      margin-bottom: 1em;
     }
+}
+
+.automod-delete-column{
+    width: 2.5em;
+}
+
+table{
+    /*So turns out, apple devices does not like this?*/
+    /*table-layout: fixed;*/
+}
+
 </style>
 
 <div class="row">
@@ -66,7 +70,8 @@
                     <a data-partial-load="true" class="nav-link show {{if not .CurrentRuleset}}active{{end}}" href="/manage/{{.ActiveGuild.ID}}/automod/logs">Logs</a>
                 </li>
 
-                {{$dot := .}} {{range .AutomodRulesets}}
+                {{$dot := .}}
+                {{range .AutomodRulesets}}
                 <li class="nav-item {{if $dot.CurrentRuleset}}{{if eq $dot.CurrentRuleset.ID .ID}}active{{end}}{{end}}">
                     <a data-partial-load="true" class="nav-link show {{if $dot.CurrentRuleset}}{{if eq $dot.CurrentRuleset.ID .ID}}active{{end}}{{end}}" href="/manage/{{$dot.ActiveGuild.ID}}/automod/ruleset/{{.ID}}">{{.Name}} <span class="indicator {{if .Enabled}}indicator-success{{else}}indicator-danger{{end}}"></span></a>
                 </li>
@@ -89,7 +94,7 @@
                                 {{checkbox "Enabled" "automod-rs-enable" `Enable ruleset?` .CurrentRuleset.Enabled}}
                                 <p class="help-block">Can also be toggled on/off using the <code>automod toggle {{.CurrentRuleset.Name}}</code> command.</p>
                                 <hr />
-
+                                
                                 <div class="automod-rule-part-table" data-automod-part-type=1>
                                     <b>Ruleset scoped conditions</b>
                                     <table class="table table-sm mb-0">
@@ -101,8 +106,12 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {{$dot := .}} {{range $i, $jv := .CurrentRuleset.R.RulesetAutomodRulesetConditions}}{{if eq .Kind 1}} {{$settings := index $dot.RSPartData $i}} {{$partType := index $dot.PartMap .TypeID}} {{mTemplate "automod_rule_part_row" "dot" $dot "partIndex" $i "settings"
-                                            $settings "partType" $partType "part" . "kind" "condition"}} {{end}}{{end}}
+                                            {{$dot := .}}
+                                            {{range $i, $jv := .CurrentRuleset.R.RulesetAutomodRulesetConditions}}{{if eq .Kind 1}}
+                                            {{$settings := index $dot.RSPartData $i}}
+                                            {{$partType := index $dot.PartMap .TypeID}}
+                                            {{mTemplate "automod_rule_part_row" "dot" $dot "partIndex" $i "settings" $settings "partType" $partType "part" . "kind" "condition"}}
+                                            {{end}}{{end}}
                                         </tbody>
                                     </table>
                                     <button type="button" class="btn btn-primary btn-sm automod-add-rule-part">+</button>
@@ -131,7 +140,7 @@
                         <!-- /.col-lg-12 -->
                     </div>
                     <!-- /.row -->
-                    {{else if not .InLogs}}
+                    {{else if  not .InLogs}}
                     <div class="row mb-3">
                         <div class="col-lg-12">
                             <p>Advanced Automoderator (also known as Automoderator V2 or AMV2 ) is a completely new automoderator system made with the goal to be the most flexible, configurable system you could get for a chat bot (within reason).<br>
@@ -155,7 +164,7 @@
                         </div>
                         <!-- /.col-lg-12 -->
                     </div>
-                    <!-- /.row -->
+                     <!-- /.row -->
                     <div class="row">
                         <div class="col-lg-12">
                             <form action="/manage/{{.ActiveGuild.ID}}/automod/new_list" method="post" data-async-form>
@@ -170,18 +179,18 @@
                         </div>
                         <!-- /.col-lg-12 -->
                     </div>
-                    <!-- /.row -->
+                     <!-- /.row -->
                     {{else}}
                     <div class="row">
                         <div class="col-lg-12">
                             <table class="table table-sm mb-0">
                                 <thead>
                                     <tr>
-                                        <th>Date (utc)</th>
-                                        <th>User (id)</th>
-                                        <th>Ruleset</th>
-                                        <th>Rule</th>
-                                        <th>Trigger</th>
+                                        <th >Date (utc)</th>
+                                        <th >User (id)</th>
+                                        <th >Ruleset</th>
+                                        <th >Rule</th>
+                                        <th >Trigger</th>
                                     </tr>
                                 </thead>
                                 {{$dot := .}}
@@ -193,7 +202,7 @@
                                         <td>{{.RuleName}}</td>
                                         <td>{{(index $dot.PartMap (.TriggerTypeid)).Name}}</td>
                                     </tr>
-                                    {{end}}
+                                {{end}}
                                 </tbody>
                             </table>
                         </div>
@@ -204,7 +213,9 @@
         </div>
     </div>
 </div>
-{{$dot := .}} {{if .CurrentRuleset}} {{range $i, $rule := .CurrentRuleset.R.RulesetAutomodRules}}
+{{$dot := .}}
+{{if .CurrentRuleset}}
+{{range $i, $rule := .CurrentRuleset.R.RulesetAutomodRules}}
 <div class="row">
     <div class="col">
         <form action="/manage/{{$dot.ActiveGuild.ID}}/automod/ruleset/{{$dot.CurrentRuleset.ID}}/rule/{{.ID}}/update" method="post" data-async-form data-async-form-alertsonly>
@@ -230,8 +241,11 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {{if .R}}{{range $j, $jv := .R.RuleAutomodRuleData}}{{if eq .Kind 0}} {{$settings := index (index $dot.RulePartData $i) $j}} {{$partType := index $dot.PartMap .TypeID}} {{mTemplate "automod_rule_part_row" "dot" $dot "partIndex" $j "settings" $settings
-                                "partType" $partType "part" . "kind" "trigger"}} {{end}}{{end}}{{end}}
+                                {{if .R}}{{range $j, $jv := .R.RuleAutomodRuleData}}{{if eq .Kind 0}}
+                                {{$settings := index (index $dot.RulePartData $i) $j}}
+                                {{$partType := index $dot.PartMap .TypeID}}
+                                {{mTemplate "automod_rule_part_row" "dot" $dot "partIndex" $j "settings" $settings "partType" $partType "part" . "kind" "trigger"}}
+                                {{end}}{{end}}{{end}}
                             </tbody>
                         </table>
                         <button type="button" class="btn btn-primary btn-sm automod-add-rule-part">+</button>
@@ -247,8 +261,11 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {{if.R}}{{range $j, $jv := .R.RuleAutomodRuleData}}{{if eq .Kind 1}} {{$settings := index (index $dot.RulePartData $i) $j}} {{$partType := index $dot.PartMap .TypeID}} {{mTemplate "automod_rule_part_row" "dot" $dot "partIndex" $j "settings" $settings
-                                "partType" $partType "part" . "kind" "condition"}} {{end}}{{end}}{{end}}
+                                {{if.R}}{{range $j, $jv := .R.RuleAutomodRuleData}}{{if eq .Kind 1}}
+                                {{$settings := index (index $dot.RulePartData $i) $j}}
+                                {{$partType := index $dot.PartMap .TypeID}}
+                                {{mTemplate "automod_rule_part_row" "dot" $dot "partIndex" $j "settings" $settings "partType" $partType "part" . "kind" "condition"}}
+                                {{end}}{{end}}{{end}}
                             </tbody>
                         </table>
                         <button type="button" class="btn btn-primary btn-sm automod-add-rule-part">+</button>
@@ -264,8 +281,11 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                {{if .R}}{{range $j, $jv := .R.RuleAutomodRuleData}}{{if eq .Kind 2}} {{$settings := index (index $dot.RulePartData $i) $j}} {{$partType := index $dot.PartMap .TypeID}} {{mTemplate "automod_rule_part_row" "dot" $dot "partIndex" $j "settings" $settings
-                                "partType" $partType "part" . "kind" "effect"}} {{end}}{{end}}{{end}}
+                                {{if .R}}{{range $j, $jv := .R.RuleAutomodRuleData}}{{if eq .Kind 2}}
+                                {{$settings := index (index $dot.RulePartData $i) $j}}
+                                {{$partType := index $dot.PartMap .TypeID}}
+                                {{mTemplate "automod_rule_part_row" "dot" $dot "partIndex" $j "settings" $settings "partType" $partType "part" . "kind" "effect"}}
+                                {{end}}{{end}}{{end}}
                             </tbody>
                         </table>
                         <button type="button" class="btn btn-primary btn-sm automod-add-rule-part">+</button><br>
@@ -276,7 +296,9 @@
         </form>
     </div>
 </div>
-{{end}} {{else if not .InLogs}} {{range .AutomodLists}}
+{{end}}
+{{else if not .InLogs}}
+{{range .AutomodLists}}
 <div class="row">
     <div class="col">
         <form action="/manage/{{$dot.ActiveGuild.ID}}/automod/list/{{.ID}}/update" method="post" data-async-form>
@@ -303,7 +325,8 @@
         </form>
     </div>
 </div>
-{{end}} {{end}}
+{{end}}
+{{end}}
 <div class="hidden">
     <select id="automod-roledropdown-multi-template" data-plugin-multiselect class="multiselect form-control" multiple="multiple">
         {{roleOptionsMulti .ActiveGuild.Roles nil nil}}
@@ -330,254 +353,247 @@
 </div>
 
 <script>
-    $(function() {
-        // Load in all part (triggers, conditions and effects) types
-        var partMap = []; {
-            {
-                range $k, $v: = .PartMap
-            }
-        }
-        partMap[{
-            {
-                $k
-            }
-        }] = {
-            name: "{{.Name}}",
-            description: "{{.Description}}",
-            kind: {
-                {.Kind
-                }
-            },
-            options: JSON.parse({
-                {
-                    json.UserSettings
-                }
-            })
-        } {
-            {
-                end
-            }
+$(function(){
+    // Load in all part (triggers, conditions and effects) types
+    var partMap = [];
+    {{range $k, $v := .PartMap}}
+    partMap[{{$k}}] = {
+        name: "{{.Name}}",
+        description: "{{.Description}}",
+        kind: {{.Kind}},
+        options: JSON.parse({{json .UserSettings}})
+    }
+    {{end}}
+
+    function namePrefixFromKind(kind){
+        namePrefix = "Triggers."
+        if(kind == 1){
+            namePrefix = "Conditions."
+        }else if(kind == 2){
+            namePrefix = "Effects."
         }
 
-        function namePrefixFromKind(kind) {
-            namePrefix = "Triggers."
-            if (kind == 1) {
-                namePrefix = "Conditions."
-            } else if (kind == 2) {
-                namePrefix = "Effects."
-            }
+        return namePrefix
+    }
 
-            return namePrefix
-        }
+    $(document).off('click', '.automod-add-rule-part')
+    $(document).on('click', '.automod-add-rule-part', function(evt){
+        var kind = $(evt.target).closest("[data-automod-part-type]").attr("data-automod-part-type")
 
-        $(document).off('click', '.automod-add-rule-part')
-        $(document).on('click', '.automod-add-rule-part', function(evt) {
-            var kind = $(evt.target).closest("[data-automod-part-type]").attr("data-automod-part-type")
+        var tbody = $(evt.target).parent().find("tbody");
+        var rowIndex = tbody.children().length;
+        var row = createPartRow(kind, rowIndex)
 
-            var tbody = $(evt.target).parent().find("tbody");
-            var rowIndex = tbody.children().length;
-            var row = createPartRow(kind, rowIndex)
-
-            tbody.append(row);
-        })
-
-        function createPartRow(kind, rowIndex) {
-            namePrefix = namePrefixFromKind(kind)
-
-            var row = $("<tr class='automod-rule-row' data-automod-row-index='" + rowIndex + "'></tr>")
-
-            var selectName = namePrefix + rowIndex + ".Type"
-            var typeSelect = $("<select class='form-control automod-type-dropdown' name='" + selectName + "'><option value='0' selected>None</option></select>")
-            for (var i = 0; i < partMap.length; i++) {
-                var partType = partMap[i]
-                if (!partType || partType.kind != kind) continue;
-
-                typeSelect.append("<option value='" + i + "'> " + partType.name + "</option>");
-            }
-
-            row.append($("<td class='d-flex'>").append(typeSelect))
-            row.append("<td class='automod-options-column'></td>")
-
-            row.append("<td><button type='button' class='btn btn-danger automod-delete-rule-part btn-sm' noconfirm>-</button></td>")
-
-            return row
-        }
-
-        $(document).off('change', '.automod-type-dropdown')
-        $(document).on("change", ".automod-type-dropdown", function(evt) {
-            partTypeChanged($(evt.target));
-        })
-
-        function partTypeChanged(target) {
-            var rowElem = target.closest(".automod-rule-row")
-            var kind = target.closest("[data-automod-part-type]").attr("data-automod-part-type")
-
-            var optionsColumn = rowElem.find(".automod-options-column")
-            var typSelectVal = target.val();
-
-            var opts = []
-            if (partMap[typSelectVal]) {
-                opts = partMap[typSelectVal].options;
-            }
-
-            var namePrefix = namePrefixFromKind(kind);
-
-            var col = createOptionsColumn(opts, namePrefix + rowElem.attr("data-automod-row-index") + ".Data.")
-            optionsColumn.replaceWith(col)
-
-            col.find("[data-plugin-multiselect]").each(function(i, v) {
-                $(v).themePluginMultiSelect({});
-            })
-
-            var typeDropdownCell = rowElem.find(".automod-type-dropdown").parent();
-            typeDropdownCell.find("[data-toggle='tooltip']").detach()
-
-            if (partMap[typSelectVal] && partMap[typSelectVal].description) {
-                var span = $('<span class="question-tooltip" data-toggle="tooltip" data-placement="bottom"><i class="fas fa-question"></i></span>')
-                span.attr("title", partMap[typSelectVal].description)
-                span.tooltip();
-
-                typeDropdownCell.append(span)
-            }
-        }
-
-        $(document).off('click', '.automod-delete-rule-part')
-        $(document).on('click', '.automod-delete-rule-part', function(evt) {
-            var rowElem = $(evt.target).closest(".automod-rule-row")
-
-            tbody = rowElem.parent();
-
-            rowElem.detach();
-
-            // Update the indexes for all the rows, since the names contains them
-            updateRowIndexes(tbody);
-        })
-
-        function updateRowIndexes(tbody) {
-            tbody.children("tr").each(function(i, v) {
-                var row = $(v)
-                row.attr("data-automod-row-index", i)
-
-                var typeDropdown = row.find(".automod-type-dropdown")
-                var name = typeDropdown.attr("name")
-                name = name.replace(/\d+/g, i)
-                typeDropdown.attr("name", name);
-
-                var inputs = row.find('[name*=".Data."]')
-                inputs.each(function(j, htmlInput) {
-                    var name = $(htmlInput).attr("name")
-                    name = name.replace(/\d+/g, i)
-                    $(htmlInput).attr("name", name)
-                })
-            });
-        }
-
-        function createOptionsColumn(opts, namePrefix) {
-            var elem = $("<td class='automod-options-column'>")
-            for (var i = 0; i < opts.length; i++) {
-                var opt = opts[i];
-                createOpt(elem, namePrefix + opt.Key, opt);
-            }
-
-            return elem;
-        }
-
-        function createOpt(cell, key, opt, namePrefix) {
-            var wrapper = $("<div class='col-md'><div class='form-group row'><label class='col-lg-2'>" + opt.Name + ":</label><div class='col-lg-10 automod-part-setting'></div></div>")
-            var column = wrapper.find(".automod-part-setting")
-
-            switch (opt.Kind) {
-                case "int":
-                    var input = $("<input type='number' class='form-control' name='" + key + "'></input>");
-                    if (opt.Min !== 0 || opt.Max !== 0) {
-                        input.attr("min", opt.Min)
-                        input.attr("max", opt.Max)
-                        input.attr("required", true)
-                    }
-
-                    if (opt.Default) {
-                        input.attr("value", opt.Default)
-                    }
-
-                    if (opt.Placeholder) {
-                        input.attr("placeholder", opt.Placeholder)
-                    }
-
-                    column.append(input)
-                    break;
-                case "string":
-                    var input = $("<input type='text' class='form-control' name='" + key + "'></input>");
-                    if (opt.Min !== 0 || opt.Max !== 0) {
-                        input.attr("minlength", opt.Min)
-                        input.attr("maxlength", opt.Max)
-                        if (opt.Min !== 0) {
-                            input.attr("required", true)
-                        }
-                    }
-
-                    if (opt.Default) {
-                        input.attr("value", opt.Default)
-                    }
-
-                    if (opt.Placeholder) {
-                        input.attr("placeholder", opt.Placeholder)
-                    }
-
-                    column.append(input)
-                    break;
-                case "bool":
-                    // <div class="form-check">
-                    //             <input type="checkbox" class="form-check-input" name="$name" checked>
-                    //         </div>
-                    var input = $("<input type='checkbox' class='form-check-input' name='" + key + "'>")
-                    if (opt.Default) {
-                        input.attr("checked", true)
-                    }
-
-                    var container = $("<div class='form-check'>")
-                    container.append(input)
-                    column.append(container)
-                    break;
-                case "multi_role":
-                    cloneDropdown(column, "#automod-roledropdown-multi-template", key, true);
-                    break;
-                case "role":
-                    cloneDropdown(column, "#automod-roledropdown-single-template", key, true);
-                    break;
-                case "channel":
-                    cloneDropdown(column, "#automod-channel-single-template", key, true);
-                    break;
-                case "multi_channel":
-                    cloneDropdown(column, "#automod-channel-multi-template", key, true);
-                    break;
-                case "multi_channel_cat":
-                    cloneDropdown(column, "#automod-channel-cat-multi-template", key, true);
-                    break;
-                case "list":
-                    cloneDropdown(column, "#automod-list-selection-template", key, true);
-                    break;
-            }
-
-            cell.append(wrapper);
-        }
-
-        function cloneDropdown(column, id, name) {
-            var input = $(id).clone()
-            input.attr("id", "")
-            input.attr("name", name)
-            input.removeClass("hidden")
-            column.append(input)
-
-            return input
-        }
-
-        $(".automod-rule-part-table tbody").each(function(i, v) {
-            updateRowIndexes($(v))
-        })
+        tbody.append(row);
     })
+
+    function createPartRow(kind, rowIndex){
+        namePrefix = namePrefixFromKind(kind)
+
+        var row = $("<tr class='automod-rule-row' data-automod-row-index='"+rowIndex+"'></tr>")
+
+        var selectName = namePrefix+rowIndex+".Type"
+        var typeSelect = $("<select class='form-control automod-type-dropdown' name='"+selectName+"'><option value='0' selected>None</option></select>")
+        for (var i = 0; i < partMap.length; i++) {
+            var partType = partMap[i]
+            if(!partType || partType.kind != kind) continue;
+
+            typeSelect.append("<option value='"+i+"'> "+partType.name+"</option>");
+        }
+
+        row.append($("<td class='d-flex'>").append(typeSelect))
+        row.append("<td class='automod-options-column'></td>")
+
+        row.append("<td><button type='button' class='btn btn-danger automod-delete-rule-part btn-sm' noconfirm>-</button></td>")
+
+        return row
+    }
+
+    $(document).off('change', '.automod-type-dropdown')
+    $(document).on("change", ".automod-type-dropdown", function(evt){
+        partTypeChanged($(evt.target));
+    })
+
+    function partTypeChanged(target){
+        var rowElem = target.closest(".automod-rule-row")
+        var kind = target.closest("[data-automod-part-type]").attr("data-automod-part-type")
+
+        var optionsColumn = rowElem.find(".automod-options-column")
+        var typSelectVal = target.val();
+
+        var opts = []
+        if (partMap[typSelectVal]){
+            opts = partMap[typSelectVal].options;
+        }
+
+        var namePrefix = namePrefixFromKind(kind);
+
+        var col = createOptionsColumn(opts, namePrefix+rowElem.attr("data-automod-row-index")+".Data.")
+        optionsColumn.replaceWith(col)
+
+        col.find("[data-plugin-multiselect]").each(function(i, v){
+            $(v).themePluginMultiSelect({});
+        })
+
+        var typeDropdownCell = rowElem.find(".automod-type-dropdown").parent();
+        typeDropdownCell.find("[data-toggle='tooltip']").detach()
+
+        if(partMap[typSelectVal] && partMap[typSelectVal].description){
+            var span = $('<span class="question-tooltip" data-toggle="tooltip" data-placement="bottom"><i class="fas fa-question"></i></span>')
+            span.attr("title", partMap[typSelectVal].description)
+            span.tooltip();
+
+            typeDropdownCell.append(span)
+        }
+    }
+
+    $(document).off('click', '.automod-delete-rule-part')
+    $(document).on('click', '.automod-delete-rule-part', function(evt){
+        var rowElem = $(evt.target).closest(".automod-rule-row")
+
+        tbody = rowElem.parent();
+
+        rowElem.detach();
+
+        // Update the indexes for all the rows, since the names contains them
+        updateRowIndexes(tbody);
+    })
+
+    function updateRowIndexes(tbody){
+        tbody.children("tr").each(function(i, v) {
+            var row = $(v)
+            row.attr("data-automod-row-index", i)
+
+            var typeDropdown = row.find(".automod-type-dropdown")
+            var name = typeDropdown.attr("name")
+            name = name.replace(/\d+/g, i)
+            typeDropdown.attr("name", name);
+
+            var inputs = row.find('[name*=".Data."]')
+            inputs.each(function(j, htmlInput){
+                var name = $(htmlInput).attr("name")
+                name = name.replace(/\d+/g, i)
+                $(htmlInput).attr("name", name)
+            })
+        });
+    }
+
+    function createOptionsColumn(opts, namePrefix){
+        var elem = $("<td class='automod-options-column'>")
+        for (var i = 0; i < opts.length; i++) {
+            var opt = opts[i];
+            createOpt(elem, namePrefix+opt.Key, opt);
+        }
+
+        return elem;
+    }
+
+    function createOpt(cell, key, opt, namePrefix){
+        var wrapper = $("<div class='col-md'><div class='form-group row'><label class='col-lg-2'>"+opt.Name+":</label><div class='col-lg-10 automod-part-setting'></div></div>")
+        var column = wrapper.find(".automod-part-setting")
+
+        switch(opt.Kind){
+        case "int":
+            var input = $("<input type='number' class='form-control' name='"+key+"'></input>");
+            if(opt.Min !== 0 || opt.Max !== 0){
+                input.attr("min", opt.Min)
+                input.attr("max", opt.Max)
+                input.attr("required", true)
+            }
+
+            if(opt.Default){
+                input.attr("value", opt.Default)
+            }
+
+            if(opt.Placeholder){
+                input.attr("placeholder", opt.Placeholder)
+            }
+
+            column.append(input)
+            break;
+        case "string":
+            var input = $("<input type='text' class='form-control' name='"+key+"'></input>");
+            if(opt.Min !== 0 || opt.Max !== 0){
+                input.attr("minlength", opt.Min)
+                input.attr("maxlength", opt.Max)
+                if(opt.Min !== 0){
+                    input.attr("required", true)
+                }
+            }
+
+            if(opt.Default){
+                input.attr("value", opt.Default)
+            }
+
+            if(opt.Placeholder){
+                input.attr("placeholder", opt.Placeholder)
+            }
+
+            column.append(input)
+            break;
+        case "bool":
+            // <div class="form-check">
+            //             <input type="checkbox" class="form-check-input" name="$name" checked>
+            //         </div>
+            var input = $("<input type='checkbox' class='form-check-input' name='"+key+"'>")
+            if(opt.Default){
+                input.attr("checked", true)
+            }
+
+            var container = $("<div class='form-check'>")
+            container.append(input)
+            column.append(container)
+            break;
+        case "multi_role":
+            cloneDropdown(column, "#automod-roledropdown-multi-template", key, true);
+            break;
+        case "role":
+            cloneDropdown(column, "#automod-roledropdown-single-template", key, true);
+            break;
+        case "channel":
+            cloneDropdown(column, "#automod-channel-single-template", key, true);
+            break;
+        case "multi_channel":
+            cloneDropdown(column, "#automod-channel-multi-template", key, true);
+            break;
+        case "multi_channel_cat":
+            cloneDropdown(column, "#automod-channel-cat-multi-template", key, true);
+            break;
+        case "list":
+            cloneDropdown(column, "#automod-list-selection-template", key, true);
+            break;
+        }
+
+        cell.append(wrapper);
+    }
+
+    function cloneDropdown(column, id, name){
+        var input = $(id).clone()
+        input.attr("id", "")
+        input.attr("name", name)
+        input.removeClass("hidden")
+        column.append(input)
+
+        return input
+    }
+
+    $(".automod-rule-part-table tbody").each(function(i, v){
+        updateRowIndexes($(v))
+    })
+})
 </script>
 
-{{template "cp_footer" .}} {{end}} {{define "automod_rule_part_row"}} {{$namePrefix := "Triggers"}} {{if eq .kind "condition"}} {{$namePrefix = "Conditions"}} {{else if eq .kind "effect"}} {{$namePrefix = "Effects"}} {{end}}
+{{template "cp_footer" .}}
+{{end}}
+
+
+{{define "automod_rule_part_row"}}
+{{$namePrefix := "Triggers"}}
+{{if eq .kind "condition"}}
+{{$namePrefix = "Conditions"}}
+{{else if eq .kind "effect"}}
+{{$namePrefix = "Effects"}}
+{{end}}
 <tr class="automod-rule-row">
     <td>
         <div class="form-gorup d-flex">
@@ -588,34 +604,42 @@
                 {{range .dot.PartList}}{{if eq .Part.Kind $kind}}
                 <option value="{{.ID}}" {{if eq $selected .ID}} selected {{end}} title="{{.Part.Description}}">{{.Part.Name}}</option>
                 {{end}}{{end}}
-            </select> {{if .partType.Description}}<span class="question-tooltip" data-toggle="tooltip" data-placement="bottom" title="{{.partType.Description}}"><i class="fas fa-question"></i></span>{{end}}
+            </select>
+            {{if .partType.Description}}<span class="question-tooltip" data-toggle="tooltip" data-placement="bottom" title="{{.partType.Description}}"><i class="fas fa-question"></i></span>{{end}}
         </div>
     </td>
     <td class="automod-options-column">
         <!-- Options here -->
-        {{$dot := .}} {{range .partType.UserSettings}}
+        {{$dot := .}}
+        {{range .partType.UserSettings}}
         <div class="col-md">
             <div class='form-group row'>
                 <label class='col-lg-2'>{{.Name}}:</label>
                 <div class='col-lg-10'>
-                    {{$name := joinStr "" $namePrefix "." $dot.partIndex ".Data." .Key}} {{if eq .Kind "int"}}
+                    {{$name := joinStr "" $namePrefix "." $dot.partIndex ".Data." .Key}}
+                    {{if eq .Kind "int"}}
                     <input type='number' class='form-control' name="{{$name}}" {{if or .Min .Max}} min="{{.Min}}" max="{{.Max}}" {{end}} value="{{index $dot.settings .Key}}"></input>
                     {{else if eq .Kind "multi_role"}}
                     <select name="{{$name}}" data-plugin-multiselect class="multiselect form-control" multiple="multiple">
                         {{roleOptionsMulti $dot.dot.ActiveGuild.Roles nil (index $dot.settings .Key)}}
-                    </select> {{else if eq .Kind "role"}}
-                    <select name="{{$name}}" class="form-control">
+                    </select>
+                    {{else if eq .Kind "role"}}
+                    <select name="{{$name}}" class="form-control" >
                         {{roleOptions $dot.dot.ActiveGuild.Roles nil (index $dot.settings .Key)}}
-                    </select> {{else if eq .Kind "channel"}}
+                    </select>
+                    {{else if eq .Kind "channel"}}
                     <select name="{{$name}}" class="form-control">
                         {{textChannelOptions $dot.dot.ActiveGuild.Channels (index $dot.settings .Key) true "None"}}
-                    </select> {{else if eq .Kind "multi_channel"}}
+                    </select>
+                    {{else if eq .Kind "multi_channel"}}
                     <select name="{{$name}}" class="multiselect form-control" multiple="multiple" data-plugin-multiselect>
                         {{textChannelOptionsMulti $dot.dot.ActiveGuild.Channels (index $dot.settings .Key)}}
-                    </select> {{else if eq .Kind "multi_channel_cat"}}
+                    </select>
+                    {{else if eq .Kind "multi_channel_cat"}}
                     <select name="{{$name}}" class="multiselect form-control" multiple="multiple" data-plugin-multiselect>
                         {{catChannelOptionsMulti $dot.dot.ActiveGuild.Channels (index $dot.settings .Key)}}
-                    </select> {{else if eq .Kind "string"}}
+                    </select>
+                    {{else if eq .Kind "string"}}
                     <input type='text' class='form-control' name="{{$name}}" {{if or .Min .Max}}{{if ne .Min 0}}required{{end}} minlength="{{.Min}}" maxlength="{{.Max}}" {{end}} value="{{index $dot.settings .Key}}"></input>
                     {{else if eq .Kind "list"}}
                     <select name="{{$name}}" class="form-control">
@@ -625,9 +649,10 @@
                         {{else}}
                         <option>No lists set up, set up a list in the global settings</option>
                         {{end}}
-                    </select> {{else if eq .Kind "bool"}}
+                    </select>
+                    {{else if eq .Kind "bool"}}
                     <div class="form-check">
-                        <input type="checkbox" class="form-check-input" name="{{$name}}" {{if (index $dot.settings .Key)}}checked{{end}}>
+                        <input type="checkbox" class="form-check-input" name="{{$name}}" {{if  (index $dot.settings .Key)}}checked{{end}}>
                     </div>
                     {{end}}
                 </div>
