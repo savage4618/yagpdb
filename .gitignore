@@ -22,3 +22,4 @@ cmd/shardorchestrator/shardorchestrator
 *.exe
 cmd/shardorchestrator/capturepanics
 yagpdb\debug.log
+debug.log
