@@ -28,7 +28,6 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/globalrl"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/guildunavailable"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/howlongtobeat"
-	"github.com/botlabs-gg/yagpdb/v2/stdcommands/imdb"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/info"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/inspire"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/invite"
@@ -111,7 +110,6 @@ func (p *Plugin) AddCommands() {
 		inspire.Command,
 		forex.Command,
 		roast.Command,
-		imdb.Command,
 		eightball.Command,
 
 		// Maintenance
