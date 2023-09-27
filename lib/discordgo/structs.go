@@ -565,15 +565,17 @@ func (r Roles) Swap(i, j int) {
 
 // A VoiceState stores the voice states of Guilds
 type VoiceState struct {
-	UserID    int64  `json:"user_id,string"`
-	SessionID string `json:"session_id"`
-	ChannelID int64  `json:"channel_id,string"`
-	GuildID   int64  `json:"guild_id,string"`
-	Suppress  bool   `json:"suppress"`
-	SelfMute  bool   `json:"self_mute"`
-	SelfDeaf  bool   `json:"self_deaf"`
-	Mute      bool   `json:"mute"`
-	Deaf      bool   `json:"deaf"`
+	UserID     int64  `json:"user_id,string"`
+	SessionID  string `json:"session_id"`
+	ChannelID  int64  `json:"channel_id,string"`
+	GuildID    int64  `json:"guild_id,string"`
+	Suppress   bool   `json:"suppress"`
+	SelfMute   bool   `json:"self_mute"`
+	SelfDeaf   bool   `json:"self_deaf"`
+	Mute       bool   `json:"mute"`
+	Deaf       bool   `json:"deaf"`
+	SelfStream bool   `json:"self_stream"`
+	SelfVideo  bool   `json:"self_video"`
 }
 
 // A Presence stores the online, offline, or idle and game status of Guild members.
@@ -634,16 +636,14 @@ const (
 
 // A Game struct holds the name of the "playing .." game for a user
 type Game struct {
-	Name          string     `json:"name"`
-	Type          GameType   `json:"type"`
-	URL           string     `json:"url,omitempty"`
-	Details       string     `json:"details,omitempty"`
-	State         string     `json:"state,omitempty"`
-	TimeStamps    TimeStamps `json:"timestamps,omitempty"`
-	Assets        Assets     `json:"assets,omitempty"`
-	ApplicationID string     `json:"application_id,omitempty"`
-	Instance      int8       `json:"instance,omitempty"`
-	// TODO: Party and Secrets (unknown structure)
+	Name       string     `json:"name"`
+	Type       GameType   `json:"type"`
+	URL        string     `json:"url,omitempty"`
+	Details    string     `json:"details,omitempty"`
+	State      string     `json:"state,omitempty"`
+	TimeStamps TimeStamps `json:"timestamps,omitempty"`
+	Assets     Assets     `json:"assets,omitempty"`
+	Instance   int8       `json:"instance,omitempty"`
 }
 
 // implement gojay.UnmarshalerJSONObject
@@ -662,20 +662,6 @@ func (g *Game) UnmarshalJSONObject(dec *gojay.Decoder, key string) error {
 	case "timestamps":
 		return dec.Object(&g.TimeStamps)
 	case "assets":
-	case "application_id":
-		var i interface{}
-		err := dec.Interface(&i)
-		if err != nil {
-			return err
-		}
-		switch t := i.(type) {
-		case int64:
-			g.ApplicationID = strconv.FormatInt(t, 10)
-		case int32:
-			g.ApplicationID = strconv.FormatInt(int64(t), 10)
-		case string:
-			g.ApplicationID = t
-		}
 	case "instance":
 		return dec.Int8(&g.Instance)
 	}
@@ -1300,7 +1286,8 @@ const (
 	ErrCodeMaximumGuildRolesReached = 30005
 	ErrCodeTooManyReactions         = 30010
 
-	ErrCodeUnauthorized = 40001
+	ErrCodeUnauthorized              = 40001
+	ErrCodeMessageAlreadyCrossposted = 40033
 
 	ErrCodeMissingAccess                             = 50001
 	ErrCodeInvalidAccountType                        = 50002

@@ -132,8 +132,6 @@ var (
 
 var logger = common.GetFixedPrefixLogger("templates")
 
-func TODO() {}
-
 type ContextSetupFunc func(ctx *Context)
 
 func RegisterSetupFunc(f ContextSetupFunc) {
@@ -174,6 +172,7 @@ type Context struct {
 	CurrentFrame *ContextFrame
 
 	IsExecedByLeaveMessage bool
+	IsExecedByJoinMessage  bool
 
 	IsExecedByEvalCC bool
 
@@ -187,10 +186,11 @@ type ContextFrame struct {
 	MentionHere     bool
 	MentionRoles    []int64
 
-	DelResponse bool
+	DelResponse     bool
+	PublishResponse bool
 
 	DelResponseDelay         int
-	EmebdsToSend             []*discordgo.MessageEmbed
+	EmbedsToSend             []*discordgo.MessageEmbed
 	AddResponseReactionNames []string
 
 	isNestedTemplate bool
@@ -480,29 +480,30 @@ func (c *Context) SendResponse(content string) (*discordgo.Message, error) {
 	}
 
 	isDM := c.CurrentFrame.SendResponseInDM || (c.CurrentFrame.CS != nil && c.CurrentFrame.CS.IsPrivate())
-
+	msgSend := c.MessageSend("")
 	var embeds []*discordgo.MessageEmbed
-	for _, v := range c.CurrentFrame.EmebdsToSend {
-		if isDM {
-			v.Footer = &discordgo.MessageEmbedFooter{
-				Text:    "Custom Command DM from the server " + c.GS.Name,
-				IconURL: c.GS.Icon,
-			}
-		}
-		embeds = append(embeds, v)
-	}
-	common.BotSession.ChannelMessageSendEmbedList(channelID, embeds)
-
-	if strings.TrimSpace(content) == "" || (c.CurrentFrame.DelResponse && c.CurrentFrame.DelResponseDelay < 1) {
+	embeds = append(embeds, c.CurrentFrame.EmbedsToSend...)
+	msgSend.Embeds = embeds
+	msgSend.Content = content
+	if (len(msgSend.Embeds) == 0 && strings.TrimSpace(content) == "") || (c.CurrentFrame.DelResponse && c.CurrentFrame.DelResponseDelay < 1) {
 		// no point in sending the response if it gets deleted immedietely
 		return nil, nil
 	}
-
 	if isDM {
-		content = "Custom Command DM from the server **" + c.GS.Name + "**\n" + content
+		msgSend.Components = []discordgo.MessageComponent{
+			discordgo.ActionsRow{
+				Components: []discordgo.MessageComponent{
+					discordgo.Button{
+						Label:    "Show Server Info",
+						Style:    discordgo.PrimaryButton,
+						Emoji:    discordgo.ComponentEmoji{Name: "📬"},
+						CustomID: fmt.Sprintf("DM_%d", c.GS.ID),
+					},
+				},
+			},
+		}
 	}
-
-	m, err := common.BotSession.ChannelMessageSendComplex(channelID, c.MessageSend(content))
+	m, err := common.BotSession.ChannelMessageSendComplex(channelID, msgSend)
 	if err != nil {
 		logger.WithError(err).Error("Failed sending message")
 	} else {
@@ -516,6 +517,10 @@ func (c *Context) SendResponse(content string) (*discordgo.Message, error) {
 					common.BotSession.MessageReactionAdd(m.ChannelID, m.ID, v)
 				}
 			}(c.CurrentFrame)
+		}
+
+		if c.CurrentFrame.PublishResponse && c.CurrentFrame.CS.Type == discordgo.ChannelTypeGuildNews {
+			common.BotSession.ChannelMessageCrosspost(m.ChannelID, m.ID)
 		}
 	}
 
@@ -587,6 +592,8 @@ func baseContextFuncs(c *Context) {
 	c.addContextFunc("editMessage", c.tmplEditMessage(true))
 	c.addContextFunc("editMessageNoEscape", c.tmplEditMessage(false))
 	c.addContextFunc("pinMessage", c.tmplPinMessage(false))
+	c.addContextFunc("publishMessage", c.tmplPublishMessage)
+	c.addContextFunc("publishResponse", c.tmplPublishResponse)
 	c.addContextFunc("sendDM", c.tmplSendDM)
 	c.addContextFunc("sendMessage", c.tmplSendMessage(true, false))
 	c.addContextFunc("sendMessageNoEscape", c.tmplSendMessage(false, false))
