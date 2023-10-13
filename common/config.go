@@ -36,6 +36,8 @@ var (
 	ConfBucketsPerNode          = config.RegisterOption("yagpdb.shard.buckets_per_node", "Number of buckets per node", 8)
 	ConfShardBucketSize         = config.RegisterOption("yagpdb.shard.shard_bucket_size", "Shards per bucket", 2)
 
+	confOddsAPIKey = config.RegisterOption("yagpdb.oddsapikey", "API key for querying sports odds.", 0)
+
 	BotOwners []int64
 )
 
