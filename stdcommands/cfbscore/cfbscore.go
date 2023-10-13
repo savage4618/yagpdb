@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/botlabs-gg/yagpdb/v2/commands"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dcmd"
@@ -24,7 +26,8 @@ var Command = &commands.YAGCommand{
 	DefaultEnabled:      true,
 	RequiredArgs:        1,
 	RunFunc: func(data *dcmd.Data) (interface{}, error) {
-		addrTeam := "https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/" + data.Args[0].Str()
+		query := strings.ToLower(data.Args[0].Str())
+		addrTeam := "https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/" + url.QueryEscape(query)
 
 		output, err := apiTeamSearch(addrTeam)
 		if err != nil {
