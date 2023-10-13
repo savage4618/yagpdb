@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
+	"net/url"
+	"strings"
 
 	"github.com/botlabs-gg/yagpdb/v2/commands"
+	"github.com/botlabs-gg/yagpdb/v2/common/config"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dcmd"
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
 )
@@ -25,31 +27,17 @@ var Command = &commands.YAGCommand{
 	RequiredArgs:        1,
 	//Options: ,
 	RunFunc: func(data *dcmd.Data) (interface{}, error) {
-		addrTeam := "https://site.api.espn.com/apis/site/v2/sports/football/college-football/teams/" + data.Args[0].Str()
+		query := strings.ToLower(data.Args[0].Str())
+		confAPIKey := config.RegisterOption("yagpdb.oddsapikey", "API key for querying sports odds.", "")
+		apiKey := confAPIKey.GetString()
+		apiEndpoint := "https://api.the-odds-api.com/v4/sports/upcoming/odds/?regions=us&markets=h2h,spreads&oddsFormat=american&bookmakers=draftkings&sport=" + url.QueryEscape(query) + "&apiKey=" + url.QueryEscape(apiKey)
 		// var to build out request from cmd args and api endpoint
 
-		output, err := apiTeamSearch(addrTeam)
+		output, err := getOdds(apiEndpoint)
 		if err != nil {
 			return nil, err
 		}
-		// grabs list of teams in json
-
-		eventID := output.Team.NextEvent[0].Id // var ID of searched team's next event
-
-		addrScore := "http://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard/" + eventID
-		// var to build out eventid and api endpoint
-
-		score, err := apiScoreSearch(addrScore)
-		if err != nil {
-			return nil, err
-		}
-		// gets information of the "next event" or "current event"
-
-		color, err := strconv.ParseInt(output.Team.Color, 16, 64)
-		if err != nil {
-			return nil, err
-		}
-		// gets searched team's color for the embed
+		// gets odds
 
 		broadcast := "not available"
 		if !(len(output.Team.NextEvent[0].Competitions[0].Broadcasts) == 0) {
@@ -60,7 +48,7 @@ var Command = &commands.YAGCommand{
 		embed := &discordgo.MessageEmbed{
 			Title:       fmt.Sprintf("Game: %s", output.Team.NextEvent[0].Name),
 			Description: fmt.Sprintf("TV: %s\n %s\n %s %s - %s %s ", broadcast, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail, score.Competitions[0].Competitors[0].Team.Name, score.Competitions[0].Competitors[0].Score, score.Competitions[0].Competitors[1].Team.Name, score.Competitions[0].Competitors[1].Score),
-			Color:       int(color),
+			Color:       int(5493559),
 		}
 		// this builds the embed for a game that is currently live. It includes the score.
 
@@ -68,8 +56,8 @@ var Command = &commands.YAGCommand{
 	},
 }
 
-func apiTeamSearch(addrTeam string) (*Output, error) { // this is the team search function
-	resp, err := http.Get(addrTeam)
+func getOdds(apiEndpoint string) (*Output, error) { // this is gets the odds of all current and upcoming games
+	resp, err := http.Get(apiEndpoint)
 	if err != nil {
 		return nil, err
 	}
@@ -94,31 +82,6 @@ func apiTeamSearch(addrTeam string) (*Output, error) { // this is the team searc
 		return nil, err
 	}
 	return output, nil
-
-}
-
-func apiScoreSearch(addrScore string) (*Score, error) { // this is the score search function
-	resp, err := http.Get(addrScore)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	score := &Score{}
-	err = json.Unmarshal([]byte(body), &score)
-	if err != nil {
-		return nil, err
-	}
-	return score, nil
 
 }
 
