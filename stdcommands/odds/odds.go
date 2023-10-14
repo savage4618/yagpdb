@@ -15,7 +15,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/lib/dcmd"
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
 	"github.com/microcosm-cc/bluemonday"
-	"github.com/siruspen/logrus"
+	"github.com/sirupsen/logrus"
 )
 
 var Command = &commands.YAGCommand{
