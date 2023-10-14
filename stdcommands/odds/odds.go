@@ -2,22 +2,26 @@ package odds
 
 import (
 	"encoding/json"
-	"fmt"
+	"html"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
+	"unicode"
 
 	"github.com/botlabs-gg/yagpdb/v2/commands"
 	"github.com/botlabs-gg/yagpdb/v2/common/config"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dcmd"
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
+	"github.com/microcosm-cc/bluemonday"
+	"github.com/siruspen/logrus"
 )
 
 var Command = &commands.YAGCommand{
 	CmdCategory: commands.CategoryFun,
 	Name:        "odds",
-	// Aliases:     []string{"fbscore", "yobitchwhatsthescoreofthefootballgame"},
+	Aliases:     []string{"betting"},
 	Description: "Betting odds",
 	Arguments: []*dcmd.ArgDef{
 		{Name: "Sport", Type: dcmd.String},
@@ -32,78 +36,106 @@ var Command = &commands.YAGCommand{
 		apiKey := confAPIKey.GetString()
 		apiEndpoint := "https://api.the-odds-api.com/v4/sports/upcoming/odds/?regions=us&markets=h2h,spreads&oddsFormat=american&bookmakers=draftkings&sport=" + url.QueryEscape(query) + "&apiKey=" + url.QueryEscape(apiKey)
 		// var to build out request from cmd args and api endpoint
-
-		output, err := getOdds(apiEndpoint)
+		req, err := http.NewRequest("GET", apiEndpoint, nil)
 		if err != nil {
 			return nil, err
 		}
-		// gets odds
 
-		broadcast := "not available"
-		if !(len(output.Team.NextEvent[0].Competitions[0].Broadcasts) == 0) {
-			broadcast = output.Team.NextEvent[0].Competitions[0].Broadcasts[0].Media.ShortName
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return nil, err
 		}
-		// this builds an embed for an upcoming game with no "live event", it just shows the next game with a start time.
+		defer resp.Body.Close()
 
-		embed := &discordgo.MessageEmbed{
-			Title:       fmt.Sprintf("Game: %s", output.Team.NextEvent[0].Name),
-			Description: fmt.Sprintf("TV: %s\n %s\n %s %s - %s %s ", broadcast, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail, score.Competitions[0].Competitors[0].Team.Name, score.Competitions[0].Competitors[0].Score, score.Competitions[0].Competitors[1].Team.Name, score.Competitions[0].Competitors[1].Score),
-			Color:       int(5493559),
+		if resp.StatusCode == 429 {
+			return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode, " Too many requests in a short time. Slow down.")
+		} else if resp.StatusCode == 404 {
+			return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode, " You probably entered an invalid sport.")
+		} else if resp.StatusCode != 200 {
+			return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode)
 		}
-		// this builds the embed for a game that is currently live. It includes the score.
 
-		return embed, nil
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		var res []OddsResponse
+		err = json.Unmarhsall(body, &res)
+		if err != nil || len(res[0].SportTitle) == 0 {
+			logrus.WithError(err).Error("Failed getting response from Odds API")
+			return "No Odds found.", err
+		}
+
+		var odd = &res[0]
+		if len(odd.ID) == 1 || data.Context().Value(paginatedMessages.CtxKeyNoPagination) != nil {
+			return createOddsEmbed(odd, &Odd.ID[0]), nil
+		}
+
+		_, err = paginatedMessages.CreatePaginatedMessage(data.GuildData.GS.ID, data.ChannelID, 1, len(odd.ID), func(p *paginatedMessages.PaginatedMessage, page int) (*discordgo.MessageEmbed, error) {
+			if page > len(odd.ID) {
+				return nil, paginatedMessages.ErrNoResults
+			}
+
+			return createOddsEmbed(odd, &odd.ID[page-1]), nil
+		})
+
+		return nil, err
 	},
 }
 
-func getOdds(apiEndpoint string) (*Output, error) { // this is gets the odds of all current and upcoming games
-	resp, err := http.Get(apiEndpoint)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+func createOddsEmbed(res *OddsResponse, outcomes *Outcomes) *discordgo.MessageEmbed {
+	title := res.HomeTeam + " vs " + res.AwayTeam
 
-	if resp.StatusCode == 502 {
-		return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode, " You probably entered a team with a space in the name. Check this link for a Team ID: <https://docs.google.com/spreadsheets/d/1QXwnLD-OPOoDkoqNxx9iSI_Nc1WgbTVYQueyx6UPPWY/edit?usp=sharing>")
-	} else if resp.StatusCode == 400 {
-		return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode, " You have entered an invalid team. Please refer to this list to grab your Team ID: <https://docs.google.com/spreadsheets/d/1QXwnLD-OPOoDkoqNxx9iSI_Nc1WgbTVYQueyx6UPPWY/edit?usp=sharing>")
-	} else if resp.StatusCode != 200 {
-		return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode)
+	embed := &discordgo.MessageEmbed{
+		Title:       title,
+		Description: "testing",
+		Color:       0x53d337,
+		Timestamp:   time.Now().Format(time.RFC3339),
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	output := &Output{}
-	err = json.Unmarshal([]byte(body), &output)
-	if err != nil {
-		return nil, err
-	}
-	return output, nil
-
+	return embed
 }
 
-type Output struct {
-	ID           string `json:"id"`
-	SportKey     string `json:"sport_key"`
-	SportTitle   string `json:"sport_title"`
-	CommenceTime string `json:"commence_time"`
-	HomeTeam     string `json:"home_team"`
-	AwayTeam     string `json:"away_team"`
-	Bookmakers   []struct {
-		Key        string `json:"key"`
-		Title      string `json:"title"`
-		LastUpdate string `json:"last_update"`
-		Markets    []struct {
-			Key        string `json:"key"`
-			LastUpdate string `json:"last_update"`
-			Outcomes   []struct {
-				Name  string  `json:"name"`
-				Price float64 `json:"price"`
-				Point float64 `json:"point"`
-			} `json:"outcomes"`
-		} `json:"markets"`
-	} `json:"bookmakers"`
+var policy = bluemonday.StrictPolicy()
+
+func normalizeOutput(s string) string {
+	// The API occasionally returns HTML tags and escapes as part of output, remove them.
+	decoded := html.UnescapeString(policy.Sanitize(s))
+	// It also sometimes returns non-printable characters, strip them out too.
+	return strings.Map(func(r rune) rune {
+		if unicode.IsGraphic(r) {
+			return r
+		}
+		return -1
+	}, decoded)
+}
+
+type Bookmakers struct {
+	Key        string    `json:"key"`
+	Title      string    `json:"title"`
+	LastUpdate string    `json:"last_update"`
+	Markets    []Markets `json:"markets"`
+}
+
+type Markets struct {
+	Key        string     `json:"key"`
+	LastUpdate string     `json:"last_update"`
+	Outcomes   []Outcomes `json:"outcomes"`
+}
+
+type Outcomes struct {
+	Name  string  `json:"name"`
+	Price float64 `json:"price"`
+	Point float64 `json:"point"`
+}
+
+type OddsResponse struct {
+	ID           string       `json:"id"`
+	SportKey     string       `json:"sport_key"`
+	SportTitle   string       `json:"sport_title"`
+	CommenceTime string       `json:"commence_time"`
+	HomeTeam     string       `json:"home_team"`
+	AwayTeam     string       `json:"away_team"`
+	Bookmakers   []Bookmakers `json:"bookmakers"`
 }
