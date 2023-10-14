@@ -10,6 +10,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/botlabs-gg/yagpdb/v2/bot/paginatedmessages"
 	"github.com/botlabs-gg/yagpdb/v2/commands"
 	"github.com/botlabs-gg/yagpdb/v2/common/config"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dcmd"
@@ -61,30 +62,30 @@ var Command = &commands.YAGCommand{
 		}
 
 		var res []OddsResponse
-		err = json.Unmarhsall(body, &res)
+		err = json.Unmarshal(body, &res)
 		if err != nil || len(res[0].SportTitle) == 0 {
 			logrus.WithError(err).Error("Failed getting response from Odds API")
 			return "No Odds found.", err
 		}
 
 		var odd = &res[0]
-		if len(odd.ID) == 1 || data.Context().Value(paginatedMessages.CtxKeyNoPagination) != nil {
-			return createOddsEmbed(odd, &Odd.ID[0]), nil
+		if len(odd.Bookmakers) == 1 || data.Context().Value(paginatedmessages.CtxKeyNoPagination) != nil {
+			return createOddsEmbed(odd, &odd.Bookmakers[0]), nil
 		}
 
-		_, err = paginatedMessages.CreatePaginatedMessage(data.GuildData.GS.ID, data.ChannelID, 1, len(odd.ID), func(p *paginatedMessages.PaginatedMessage, page int) (*discordgo.MessageEmbed, error) {
+		_, err = paginatedmessages.CreatePaginatedMessage(data.GuildData.GS.ID, data.ChannelID, 1, len(odd.ID), func(p *paginatedmessages.PaginatedMessage, page int) (*discordgo.MessageEmbed, error) {
 			if page > len(odd.ID) {
-				return nil, paginatedMessages.ErrNoResults
+				return nil, paginatedmessages.ErrNoResults
 			}
 
-			return createOddsEmbed(odd, &odd.ID[page-1]), nil
+			return createOddsEmbed(odd, &odd.Bookmakers[page-1]), nil
 		})
 
 		return nil, err
 	},
 }
 
-func createOddsEmbed(res *OddsResponse, outcomes *Outcomes) *discordgo.MessageEmbed {
+func createOddsEmbed(res *OddsResponse, bm *Bookmaker) *discordgo.MessageEmbed {
 	title := res.HomeTeam + " vs " + res.AwayTeam
 
 	embed := &discordgo.MessageEmbed{
@@ -111,31 +112,31 @@ func normalizeOutput(s string) string {
 	}, decoded)
 }
 
-type Bookmakers struct {
+type Bookmaker struct {
+	Key        string   `json:"key"`
+	Title      string   `json:"title"`
+	LastUpdate string   `json:"last_update"`
+	Markets    []Market `json:"markets"`
+}
+
+type Market struct {
 	Key        string    `json:"key"`
-	Title      string    `json:"title"`
 	LastUpdate string    `json:"last_update"`
-	Markets    []Markets `json:"markets"`
+	Outcomes   []Outcome `json:"outcomes"`
 }
 
-type Markets struct {
-	Key        string     `json:"key"`
-	LastUpdate string     `json:"last_update"`
-	Outcomes   []Outcomes `json:"outcomes"`
-}
-
-type Outcomes struct {
+type Outcome struct {
 	Name  string  `json:"name"`
 	Price float64 `json:"price"`
 	Point float64 `json:"point"`
 }
 
 type OddsResponse struct {
-	ID           string       `json:"id"`
-	SportKey     string       `json:"sport_key"`
-	SportTitle   string       `json:"sport_title"`
-	CommenceTime string       `json:"commence_time"`
-	HomeTeam     string       `json:"home_team"`
-	AwayTeam     string       `json:"away_team"`
-	Bookmakers   []Bookmakers `json:"bookmakers"`
+	ID           string      `json:"id"`
+	SportKey     string      `json:"sport_key"`
+	SportTitle   string      `json:"sport_title"`
+	CommenceTime string      `json:"commence_time"`
+	HomeTeam     string      `json:"home_team"`
+	AwayTeam     string      `json:"away_team"`
+	Bookmakers   []Bookmaker `json:"bookmakers"`
 }
