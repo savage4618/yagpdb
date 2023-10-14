@@ -35,6 +35,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/listflags"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/listroles"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/memstats"
+	"github.com/botlabs-gg/yagpdb/v2/stdcommands/odds"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/ping"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/poll"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/roast"
@@ -109,6 +110,7 @@ func (p *Plugin) AddCommands() {
 		howlongtobeat.Command,
 		inspire.Command,
 		forex.Command,
+		odds.Command,
 		roast.Command,
 		eightball.Command,
 
