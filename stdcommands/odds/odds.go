@@ -19,6 +19,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+var confAPIKey = config.RegisterOption("yagpdb.oddsapikey", "API key for querying sports odds.", "")
 var Command = &commands.YAGCommand{
 	CmdCategory: commands.CategoryFun,
 	Name:        "odds",
@@ -33,7 +34,6 @@ var Command = &commands.YAGCommand{
 	//Options: ,
 	RunFunc: func(data *dcmd.Data) (interface{}, error) {
 		query := strings.ToLower(data.Args[0].Str())
-		confAPIKey := config.RegisterOption("yagpdb.oddsapikey", "API key for querying sports odds.", "")
 		apiKey := confAPIKey.GetString()
 		apiEndpoint := "https://api.the-odds-api.com/v4/sports/upcoming/odds/?regions=us&markets=h2h,spreads&oddsFormat=american&bookmakers=draftkings&sport=" + url.QueryEscape(query) + "&apiKey=" + url.QueryEscape(apiKey)
 		// var to build out request from cmd args and api endpoint
