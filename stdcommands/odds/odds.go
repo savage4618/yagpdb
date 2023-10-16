@@ -2,6 +2,7 @@ package odds
 
 import (
 	"encoding/json"
+	"fmt"
 	"html"
 	"io"
 	"net/http"
@@ -70,7 +71,7 @@ var Command = &commands.YAGCommand{
 
 		var odd = &res[0]
 		if len(odd.Bookmakers) == 1 || data.Context().Value(paginatedmessages.CtxKeyNoPagination) != nil {
-			return createOddsEmbed(odd, &odd.Bookmakers[0]), nil
+			return createOddsEmbed(data, odd, &odd.Bookmakers[0], nil, nil), nil
 		}
 
 		_, err = paginatedmessages.CreatePaginatedMessage(data.GuildData.GS.ID, data.ChannelID, 1, len(odd.ID), func(p *paginatedmessages.PaginatedMessage, page int) (*discordgo.MessageEmbed, error) {
@@ -78,14 +79,14 @@ var Command = &commands.YAGCommand{
 				return nil, paginatedmessages.ErrNoResults
 			}
 
-			return createOddsEmbed(odd, &odd.Bookmakers[page-1]), nil
+			return createOddsEmbed(data, odd, &odd.Bookmakers[0], nil, nil), nil
 		})
 
 		return nil, err
 	},
 }
 
-func createOddsEmbed(res *OddsResponse, bm *Bookmaker) *discordgo.MessageEmbed {
+/*func createOddsEmbed(res *OddsResponse, bm *Bookmaker) *discordgo.MessageEmbed {
 	title := "Odds for upcoming games in " + "data.Args[0].Str()"
 
 	embed := &discordgo.MessageEmbed{
@@ -94,11 +95,49 @@ func createOddsEmbed(res *OddsResponse, bm *Bookmaker) *discordgo.MessageEmbed {
 		Color:       0x53d337,
 		Timestamp:   time.Now().Format(time.RFC3339),
 		Footer:      &discordgo.MessageEmbedFooter{Text: "requests used from header maybe"},
-		Thumbnail:   &discordgo.MessageEmbedThumbnail{URL: "https://randomdad.xyz/SB_Green_Icon.svg"},
+		Thumbnail:   &discordgo.MessageEmbedThumbnail{URL: "https://randomdad.xyz/SB_Green_Icon.png"},
 		Author: &discordgo.MessageEmbedAuthor{
 			Name:    "DraftKings Sportsbook Odds",
 			URL:     "https://sportsbook.draftkings.com/",
-			IconURL: "https://randomdad.xyz/SB_Green_Icon.svg"},
+			IconURL: "https://randomdad.xyz/SB_Green_Icon.png"},
+	}
+
+	return embed
+}*/
+func createOddsEmbed(data *dcmd.Data, res *OddsResponse, bm *Bookmaker, market *Market, outcome *Outcome) *discordgo.MessageEmbed {
+	title := "Upcoming odds for " + data.Args[0].Str()
+
+	// Get the last update timestamp from the Bookmaker struct
+	lastUpdate := bm.LastUpdate
+
+	embed := &discordgo.MessageEmbed{
+		Title:       title,
+		Description: "Last Updated: " + lastUpdate,
+		Color:       5493559,
+		Timestamp:   time.Now().Format(time.RFC3339),
+		/*Footer: &discordgo.MessageEmbedFooter{
+		    Text: "Requests used from header maybe",
+		},*/
+		Thumbnail: &discordgo.MessageEmbedThumbnail{
+			URL: "https://randomdad.xyz/SB_Green_Icon.png",
+		},
+		Author: &discordgo.MessageEmbedAuthor{
+			Name:    "DraftKings Sportsbook Odds",
+			URL:     "https://sportsbook.draftkings.com/",
+			IconURL: "https://randomdad.xyz/SB_Green_Icon.png",
+		},
+		Fields: []*discordgo.MessageEmbedField{
+			{
+				Name:   res.HomeTeam + " vs " + res.AwayTeam,
+				Value:  res.HomeTeam + " win: " + fmt.Sprintf("%.2f", outcome.Price) + "\n" + res.HomeTeam + " " + market.Key + " | " + fmt.Sprintf("%.2f", outcome.Price),
+				Inline: true,
+			},
+			{
+				Name:   res.AwayTeam,
+				Value:  res.AwayTeam + " win: " + fmt.Sprintf("%.2f", outcome.Price) + "\n" + res.AwayTeam + " " + market.Key + " | " + fmt.Sprintf("%.2f", outcome.Price),
+				Inline: true,
+			},
+		},
 	}
 
 	return embed
