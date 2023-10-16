@@ -52,7 +52,7 @@ var Command = &commands.YAGCommand{
 			return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode, " Too many requests in a short time. Slow down.")
 		} else if resp.StatusCode == 404 {
 			return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode, " You probably entered an invalid sport.")
-		} else if resp.StatusCode != 200 {
+		} else if resp.StatusCode != 401 {
 			return nil, commands.NewPublicError("HTTP err: ", resp.StatusCode)
 		}
 
