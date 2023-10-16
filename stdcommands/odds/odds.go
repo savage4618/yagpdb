@@ -86,13 +86,19 @@ var Command = &commands.YAGCommand{
 }
 
 func createOddsEmbed(res *OddsResponse, bm *Bookmaker) *discordgo.MessageEmbed {
-	title := res.HomeTeam + " vs " + res.AwayTeam
+	title := "Odds for upcoming games in " + "data.Args[0].Str()"
 
 	embed := &discordgo.MessageEmbed{
 		Title:       title,
-		Description: "testing",
+		Description: "Last Updated from first result maybe? discord timestamp maybe?",
 		Color:       0x53d337,
 		Timestamp:   time.Now().Format(time.RFC3339),
+		Footer:      &discordgo.MessageEmbedFooter{Text: "requests used from header maybe"},
+		Thumbnail:   &discordgo.MessageEmbedThumbnail{URL: "https://randomdad.xyz/SB_Green_Icon.svg"},
+		Author: &discordgo.MessageEmbedAuthor{
+			Name:    "DraftKings Sportsbook Odds",
+			URL:     "https://sportsbook.draftkings.com/",
+			IconURL: "https://randomdad.xyz/SB_Green_Icon.svg"},
 	}
 
 	return embed
