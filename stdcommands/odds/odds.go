@@ -2,20 +2,17 @@ package odds
 
 import (
 	"encoding/json"
-	"html"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/botlabs-gg/yagpdb/v2/bot/paginatedmessages"
 	"github.com/botlabs-gg/yagpdb/v2/commands"
 	"github.com/botlabs-gg/yagpdb/v2/common/config"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dcmd"
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
-	"github.com/microcosm-cc/bluemonday"
 	"github.com/sirupsen/logrus"
 )
 
@@ -85,15 +82,15 @@ var Command = &commands.YAGCommand{
 	},
 }
 
-func createOddsEmbed(res *OddsResponse, bm *Bookmaker) *discordgo.MessageEmbed {
-	title := "Odds for upcoming games in " + "data.Args[0].Str()"
+func createOddsEmbed(data *dcmd.Data, res []OddsResponse, bm []Bookmaker, mkt []Market, otcm []Outcome, i int) *discordgo.MessageEmbed {
+	title := "Odds for upcoming games in " + data.Args[0].Str()
 
 	embed := &discordgo.MessageEmbed{
 		Title:       title,
-		Description: "Last Updated from first result maybe? discord timestamp maybe?",
+		Description: res[i].HomeTeam + " vs " + res[i].AwayTeam,
 		Color:       0x53d337,
 		Timestamp:   time.Now().Format(time.RFC3339),
-		Footer:      &discordgo.MessageEmbedFooter{Text: "requests used from header maybe"},
+		Footer:      &discordgo.MessageEmbedFooter{Text: "Odds updated :" + bm[i].LastUpdate},
 		Thumbnail:   &discordgo.MessageEmbedThumbnail{URL: "https://randomdad.xyz/SB_Green_Icon.png"},
 		Author: &discordgo.MessageEmbedAuthor{
 			Name:    "DraftKings Sportsbook Odds",
@@ -102,20 +99,6 @@ func createOddsEmbed(res *OddsResponse, bm *Bookmaker) *discordgo.MessageEmbed {
 	}
 
 	return embed
-}
-
-var policy = bluemonday.StrictPolicy()
-
-func normalizeOutput(s string) string {
-	// The API occasionally returns HTML tags and escapes as part of output, remove them.
-	decoded := html.UnescapeString(policy.Sanitize(s))
-	// It also sometimes returns non-printable characters, strip them out too.
-	return strings.Map(func(r rune) rune {
-		if unicode.IsGraphic(r) {
-			return r
-		}
-		return -1
-	}, decoded)
 }
 
 type Bookmaker struct {
