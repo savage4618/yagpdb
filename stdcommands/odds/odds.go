@@ -65,6 +65,8 @@ var Command = &commands.YAGCommand{
 			return "No Odds found.", err
 		}
 
+		// fairly certain that from this line down to line 85, anywhere you see "Bookmakers" should say something else, but I can't figure out what yet.
+		// I changed the OddsResponse struct to be nested instead of separate for each category and I don't know how to fix the rest yet.
 		var odd = &res[0]
 		if len(odd.Bookmakers) == 1 || data.Context().Value(paginatedmessages.CtxKeyNoPagination) != nil {
 			return createOddsEmbed(odd, &odd.Bookmakers[0]), nil
@@ -82,7 +84,7 @@ var Command = &commands.YAGCommand{
 	},
 }
 
-func createOddsEmbed(data *dcmd.Data, res []OddsResponse, bm []Bookmaker, mkt []Market, otcm []Outcome, i int) *discordgo.MessageEmbed {
+func createOddsEmbed(data *dcmd.Data, res []OddsResponse, i int) *discordgo.MessageEmbed {
 	title := "Odds for upcoming games in " + data.Args[0].Str()
 
 	embed := &discordgo.MessageEmbed{
@@ -90,7 +92,7 @@ func createOddsEmbed(data *dcmd.Data, res []OddsResponse, bm []Bookmaker, mkt []
 		Description: res[i].HomeTeam + " vs " + res[i].AwayTeam,
 		Color:       0x53d337,
 		Timestamp:   time.Now().Format(time.RFC3339),
-		Footer:      &discordgo.MessageEmbedFooter{Text: "Odds updated :" + bm[i].LastUpdate},
+		Footer:      &discordgo.MessageEmbedFooter{Text: "Odds updated :" + res[i].Bookmakers[0].LastUpdate},
 		Thumbnail:   &discordgo.MessageEmbedThumbnail{URL: "https://randomdad.xyz/SB_Green_Icon.png"},
 		Author: &discordgo.MessageEmbedAuthor{
 			Name:    "DraftKings Sportsbook Odds",
@@ -101,6 +103,31 @@ func createOddsEmbed(data *dcmd.Data, res []OddsResponse, bm []Bookmaker, mkt []
 	return embed
 }
 
+type OddsResponse struct {
+	ID           string `json:"id"`
+	SportKey     string `json:"sport_key"`
+	SportTitle   string `json:"sport_title"`
+	CommenceTime string `json:"commence_time"`
+	HomeTeam     string `json:"home_team"`
+	AwayTeam     string `json:"away_team"`
+	Bookmakers   []struct {
+		Key        string `json:"key"`
+		Title      string `json:"title"`
+		LastUpdate string `json:"last_update"`
+		Markets    []struct {
+			Key        string `json:"key"`
+			LastUpdate string `json:"last_update"`
+			Outcomes   []struct {
+				Name  string  `json:"name"`
+				Price float64 `json:"price"`
+				Point float64 `json:"point"`
+			} `json:"outcomes"`
+		} `json:"markets"`
+	} `json:"bookmakers"`
+}
+
+// old struct below:
+/*
 type Bookmaker struct {
 	Key        string   `json:"key"`
 	Title      string   `json:"title"`
@@ -129,3 +156,9 @@ type OddsResponse struct {
 	AwayTeam     string      `json:"away_team"`
 	Bookmakers   []Bookmaker `json:"bookmakers"`
 }
+*/
+
+// example payload below:
+/*
+	[{"id":"4ba6c9dc0a932f3a348ee9d2588d2dfd","sport_key":"americanfootball_ncaaf","sport_title":"NCAAF","commence_time":"2023-10-17T23:00:00Z","home_team":"Liberty Flames","away_team":"Middle Tennessee Blue Raiders","bookmakers":[{"key":"draftkings","title":"DraftKings","last_update":"2023-10-16T17:31:44Z","markets":[{"key":"h2h","last_update":"2023-10-16T17:31:44Z","outcomes":[{"name":"Liberty Flames","price":-750},{"name":"Middle Tennessee Blue Raiders","price":525}]},{"key":"spreads","last_update":"2023-10-16T17:31:44Z","outcomes":[{"name":"Liberty Flames","price":-105,"point":-14.5},{"name":"Middle Tennessee Blue Raiders","price":-115,"point":14.5}]}]}]},{"id":"0b099f752ff64105b19eafc072223739","sport_key":"americanfootball_ncaaf","sport_title":"NCAAF","commence_time":"2023-10-17T23:30:00Z","home_team":"Jacksonville State Gamecocks","away_team":"Western Kentucky Hilltoppers","bookmakers":[{"key":"draftkings","title":"DraftKings","last_update":"2023-10-16T17:31:44Z","markets":[{"key":"h2h","last_update":"2023-10-16T17:31:44Z","outcomes":[{"name":"Jacksonville State Gamecocks","price":240},{"name":"Western Kentucky Hilltoppers","price":-298}]},{"key":"spreads","last_update":"2023-10-16T17:31:44Z","outcomes":[{"name":"Jacksonville State Gamecocks","price":-110,"point":7.0},{"name":"Western Kentucky Hilltoppers","price":-110,"point":-7.0}]}]}]}]
+*/
