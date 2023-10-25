@@ -431,11 +431,12 @@ func loadCoreHTMLTemplate(path string) {
 }
 
 const (
-	SidebarCategoryTopLevel = "Top"
-	SidebarCategoryFeeds    = "Feeds"
-	SidebarCategoryTools    = "Tools"
-	SidebarCategoryFun      = "Fun"
-	SidebarCategoryCore     = "Core"
+	SidebarCategoryTopLevel   = "Top"
+	SidebarCategoryFeeds      = "Feeds"
+	SidebarCategoryTools      = "Tools"
+	SidebarCategoryFun        = "Fun"
+	SidebarCategoryCore       = "Core"
+	SidebarCategoryModeration = "Moderation"
 )
 
 type SidebarItem struct {

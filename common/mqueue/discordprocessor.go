@@ -110,11 +110,15 @@ func trySendNormal(l *logrus.Entry, elem *QueuedElement) (err error) {
 	if elem.MessageEmbed != nil {
 		msg.Embeds = []*discordgo.MessageEmbed{elem.MessageEmbed}
 	}
-	_, err = common.BotSession.ChannelMessageSendComplex(elem.ChannelID, msg)
+	m, err := common.BotSession.ChannelMessageSendComplex(elem.ChannelID, msg)
 	if err != nil {
 		logrus.WithError(err).Error("Failed sending mqueue message")
+		return
 	}
 
+	if elem.PublishAnnouncement {
+		_, err = common.BotSession.ChannelMessageCrosspost(elem.ChannelID, m.ID)
+	}
 	return
 }
 
