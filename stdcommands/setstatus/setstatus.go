@@ -42,6 +42,6 @@ var Command = &commands.YAGCommand{
 			return nil, commands.NewUserError(fmt.Sprintf("Invalid status type %q. Allowed values are 'online', 'idle', 'dnd', 'offline'", statusType))
 		}
 		bot.SetStatus(activityType, statusType, statusText, streamingUrl)
-		return "Doneso", nil
+		return "On it, dickhead.", nil
 	}),
 }
