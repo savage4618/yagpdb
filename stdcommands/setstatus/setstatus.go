@@ -3,8 +3,6 @@ package setstatus
 import (
 	"fmt"
 
-	"fmt"
-
 	"github.com/botlabs-gg/yagpdb/v2/bot"
 	"github.com/botlabs-gg/yagpdb/v2/commands"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dcmd"
@@ -16,7 +14,6 @@ var Command = &commands.YAGCommand{
 	CmdCategory:          commands.CategoryDebug,
 	HideFromCommandsPage: true,
 	Name:                 "setstatus",
-	Description:          "Sets the bot's presence type, status text, online status, and optional streaming URL. Bot Admin Only",
 	Description:          "Sets the bot's presence type, status text, online status, and optional streaming URL. Bot Admin Only",
 	HideFromHelp:         true,
 	Arguments: []*dcmd.ArgDef{
