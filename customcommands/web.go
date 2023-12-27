@@ -81,13 +81,6 @@ func (p *Plugin) InitWeb() {
 		Icon: "fas fa-database",
 	})
 
-	web.AddHTMLTemplate("customcommands/assets/customcommands_database.html", PageHTMLDatabase)
-	web.AddSidebarItem(web.SidebarCategoryCore, &web.SidebarItem{
-		Name: "Custom command database",
-		URL:  "customcommands/database",
-		Icon: "fas fa-database",
-	})
-
 	getHandler := web.ControllerHandler(handleCommands, "cp_custom_commands")
 	getCmdHandler := web.ControllerHandler(handleGetCommand, "cp_custom_commands_edit_cmd")
 	getGroupHandler := web.ControllerHandler(handleGetCommandsGroup, "cp_custom_commands")
