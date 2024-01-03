@@ -16,7 +16,6 @@ var Command = &commands.YAGCommand{
 	Description:         "Sends a random motivation",
 	DefaultEnabled:      true,
 	SlashCommandEnabled: true,
-	NSFW:                true,
 	RunFunc: func(data *dcmd.Data) (interface{}, error) {
 		embed := &discordgo.MessageEmbed{}
 		embed.Title = "Here is your motivational quote"
