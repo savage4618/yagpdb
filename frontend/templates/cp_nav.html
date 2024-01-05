@@ -3,9 +3,10 @@
 <header class="header">
     <div class="logo-container">
         <a href="/manage" class="logo">
-            <img src="/static/img/avatar.png" height="35" alt="RandomDadGPDB" />
+            <img src="/static/img/avatar.png" height="35" alt="YAGPDB" />
         </a>
-        <div class="d-md-none toggle-sidebar-left" data-toggle-class="sidebar-left-opened" data-target="html" data-fire-event="sidebar-left-opened">
+        <div class="d-md-none toggle-sidebar-left" data-toggle-class="sidebar-left-opened" data-target="html"
+            data-fire-event="sidebar-left-opened">
             <i class="fas fa-bars" aria-label="Toggle sidebar"></i>
         </div>
     </div>
@@ -26,39 +27,49 @@
 
         <ul class="notifications">
             <li>
-                <a href="#" onclick="toggleTheme()" target="_blank" class="notification-icon" data-toggle="tooltip" data-placement="bottom" title="" data-original-title="Toggle light/dark theme">
+                <a href="#" onclick="toggleTheme()" target="_blank" class="notification-icon" data-toggle="tooltip"
+                    data-placement="bottom" title="" data-original-title="Toggle light/dark theme">
                     <i class="fas fa-lightbulb"></i>
                 </a>
             </li>
             <li>
-                <a href="https://discord.gg/4rPNwcpjfr" target="_blank" class="notification-icon" data-toggle="tooltip" data-placement="bottom" title="" data-original-title="RandomDadGPDB Community and support server">
+                <a href="https://discord.gg/4udtcA5" target="_blank" class="notification-icon" data-toggle="tooltip"
+                    data-placement="bottom" title="" data-original-title="YAGPDB Community and support server">
                     <i class="fab fa-discord"></i>
                 </a>
             </li>
             <li>
-                <a href="/manage" class="notification-icon" data-toggle="tooltip" data-placement="bottom" title="" data-original-title="News and updates">
+                <a href="/manage" class="notification-icon" data-toggle="tooltip" data-placement="bottom" title=""
+                    data-original-title="News and updates">
                     <i class="far fa-newspaper"></i>
                 </a>
             </li>
             <li>
-                <a href="https://docs.yagpdb.xyz/" class="notification-icon" target="_blank" data-toggle="tooltip" data-placement="bottom" title="" data-original-title="Documentation">
+                <a href="https://docs.yagpdb.xyz/" class="notification-icon" target="_blank" data-toggle="tooltip"
+                    data-placement="bottom" title="" data-original-title="Documentation">
                     <i class="fas fa-question"></i>
                 </a>
             </li>
             <li>
-                <a href="/status" class="notification-icon" data-toggle="tooltip" data-placement="bottom" title="" data-original-title="Status">
+                <a href="/status" class="notification-icon" data-toggle="tooltip" data-placement="bottom" title=""
+                    data-original-title="Status">
                     <i class="fas fa-exclamation-triangle"></i>
                 </a>
             </li>
         </ul>
 
-        <span class="separator"></span> {{if .User}}
+        <span class="separator"></span>
+
+        {{if .User}}
         <div id="server-selection" class="userbox">
             <a href="#" data-toggle="dropdown">
                 <figure class="profile-picture">
                     {{if and .ActiveGuild .ActiveGuild.Icon}}
-                    <img src="https://cdn.discordapp.com/icons/{{.ActiveGuild.ID}}/{{.ActiveGuild.Icon}}?size=64" alt="Server Icon" class="rounded-circle" /> {{else}}
-                    <img src="/static/img/questionmark.png" alt="Server Icon" class="rounded-circle" /> {{end}}
+                    <img src="https://cdn.discordapp.com/icons/{{.ActiveGuild.ID}}/{{.ActiveGuild.Icon}}?size=64"
+                        alt="Server Icon" class="rounded-circle" />
+                    {{else}}
+                    <img src="/static/img/questionmark.png" alt="Server Icon" class="rounded-circle" />
+                    {{end}}
                 </figure>
                 <div class="profile-info" data-lock-name="Server Name">
                     <span class="name">{{if .ActiveGuild}}{{.ActiveGuild.Name}}{{if .IsGuildPremium}}<i
@@ -94,7 +105,9 @@
         <div id="userbox" class="userbox">
             <a href="#" data-toggle="dropdown">
                 <figure class="profile-picture">
-                    {{if .User.Avatar}}<img src="https://cdn.discordapp.com/avatars/{{.User.ID}}/{{.User.Avatar}}?size=64" alt="Joseph Doe" class="rounded-circle" data-lock-picture="img/!logged-user.jpg" />{{end}}
+                    {{if .User.Avatar}}<img
+                        src="https://cdn.discordapp.com/avatars/{{.User.ID}}/{{.User.Avatar}}?size=64" alt="Joseph Doe"
+                        class="rounded-circle" data-lock-picture="img/!logged-user.jpg" />{{end}}
                 </figure>
                 <div class="profile-info" data-lock-name="{{.User.Username}}" data-lock-email="">
                     <span class="name">{{or .User.Globalname .User.Username}}</span>
@@ -120,21 +133,19 @@
         <div class="userbox">
             <a href="/login?goto={{urlquery .RequestURI}}"><i class="fas fa-power-off"></i> Login using discord</a>
         </div>
-        <span class="separator"></span> {{end}}
+        <span class="separator"></span>
+        {{end}}
     </div>
     <!-- end: search & user box -->
 </header>
 <!-- end: header -->
-{{end}} {{define "cp_nav_sidebar"}}
+{{end}}
+
+{{define "cp_nav_sidebar"}}
 <style>
     @media(min-width: 768px) {
         #sidebar-left {
-            margin-bottom: {
-                {
-                    .CurrentAd.Height
-                }
-            }
-            px;
+            margin-bottom: {{.CurrentAd.Height}}px;
         }
     }
 </style>
@@ -146,7 +157,8 @@
         <div class="sidebar-title">
             Navigation
         </div>
-        <div class="sidebar-toggle d-none d-md-block" data-toggle-class="sidebar-left-collapsed" data-target="html" data-fire-event="sidebar-left-toggle">
+        <div class="sidebar-toggle d-none d-md-block" data-toggle-class="sidebar-left-collapsed" data-target="html"
+            data-fire-event="sidebar-left-toggle">
             <i class="fas fa-bars" aria-label="Toggle sidebar"></i>
         </div>
     </div>
@@ -155,21 +167,26 @@
         <div class="nano-content">
             <nav id="menu" class="nav-main" role="navigation">
                 <ul class="nav nav-main">
-                    {{if and .ActiveGuild .IsAdmin}} {{$ag := .ActiveGuild}}
+                    {{if and .ActiveGuild .IsAdmin}}
+                    {{$ag := .ActiveGuild}}
                     <li>
                         <a class="nav-link" data-partial-load="true" href="/manage/{{.ActiveGuild.ID}}/home">
                             <i class="fas fa-home" aria-hidden="true"></i>
                             <span>Home</span>
                         </a>
                     </li>
-                    {{range (index .SidebarItems "Top")}} {{template "sidebar_item" (dict "ActiveGuild" $ag "Item" .)}} {{end}}
+                    {{range (index .SidebarItems "Top")}}
+                    {{template "sidebar_item" (dict "ActiveGuild" $ag "Item" .)}}
+                    {{end}}
                     <li class="nav-parent">
                         <a class="nav-link" href="#">
                             <i class="fas fa-cogs" aria-hidden="true"></i>
                             <span>Core</span>
                         </a>
                         <ul class="nav nav-children">
-                            {{range (index .SidebarItems "Core")}} {{template "sidebar_item" (dict "ActiveGuild" $ag "Item" .)}} {{end}}
+                            {{range (index .SidebarItems "Core")}}
+                            {{template "sidebar_item" (dict "ActiveGuild" $ag "Item" .)}}
+                            {{end}}
                         </ul>
                     </li>
                      <li class="nav-parent">
@@ -200,7 +217,9 @@
                             <span>Notifications & Feeds</span>
                         </a>
                         <ul class="nav nav-children">
-                            {{range (index .SidebarItems "Feeds")}} {{template "sidebar_item" (dict "ActiveGuild" $ag "Item" .)}} {{end}}
+                            {{range (index .SidebarItems "Feeds")}}
+                            {{template "sidebar_item" (dict "ActiveGuild" $ag "Item" .)}}
+                            {{end}}
                         </ul>
                     </li>
                     <li class="nav-parent">
@@ -209,7 +228,9 @@
                             <span>Tools & Utilities</span>
                         </a>
                         <ul class="nav nav-children">
-                            {{range (index .SidebarItems "Tools")}} {{template "sidebar_item" (dict "ActiveGuild" $ag "Item" .)}} {{end}}
+                            {{range (index .SidebarItems "Tools")}}
+                            {{template "sidebar_item" (dict "ActiveGuild" $ag "Item" .)}}
+                            {{end}}
                         </ul>
                     </li>
                     <li class="nav-parent">
@@ -218,7 +239,9 @@
                             <span>Fun</span>
                         </a>
                         <ul class="nav nav-children">
-                            {{range (index .SidebarItems "Fun")}} {{template "sidebar_item" (dict "ActiveGuild" $ag "Item" .)}} {{end}}
+                            {{range (index .SidebarItems "Fun")}}
+                            {{template "sidebar_item" (dict "ActiveGuild" $ag "Item" .)}}
+                            {{end}}
                         </ul>
                     </li>
                     {{end}}
@@ -251,21 +274,32 @@
         {{end}}
     </a>
 </div>
-{{end}} {{end}} {{define "sidebar_item"}} {{$ag := .ActiveGuild}} {{$item := .Item}}
+{{end}}
+{{end}}
+
+{{define "sidebar_item"}}
+{{$ag := .ActiveGuild}}
+{{$item := .Item}}
 <li>
-    <a class="nav-link" {{if not $item.External}}data-partial-load="true" {{else}}target="_blank" {{end}} href="{{if not $item.External}}/manage/{{$ag.ID}}/{{$item.URL}}{{else}}{{$item.URL}}{{end}}">
+    <a class="nav-link" {{if not $item.External}}data-partial-load="true"{{else}}target="_blank"{{end}} href="{{if not $item.External}}/manage/{{$ag.ID}}/{{$item.URL}}{{else}}{{$item.URL}}{{end}}">
         {{if $item.Icon}}<i class="{{$item.Icon}}" aria-hidden="true"></i>{{end}}
         {{if $item.CustomIconImage}}<image src="{{$item.CustomIconImage}}" width="24" class="nav-sidebar-icon-custom mr-1" />{{end}}
         {{if $item.New}}<span class="float-right badge badge-success">New!</span>{{end}}
         <span>{{$item.Name}}</span>
     </a>
 </li>
-{{end}} {{define "cp_guild_selection"}}
+{{end}}
+
+
+{{define "cp_guild_selection"}}
 <a href="#" data-toggle="dropdown">
     <figure class="profile-picture">
         {{if and .ActiveGuild .ActiveGuild.Icon}}
-        <img src="https://cdn.discordapp.com/icons/{{.ActiveGuild.ID}}/{{.ActiveGuild.Icon}}?size=64" alt="Server Icon" class="rounded-circle" /> {{else}}
-        <img src="/static/img/questionmark.png" alt="Server Icon" class="rounded-circle" /> {{end}}
+        <img src="https://cdn.discordapp.com/icons/{{.ActiveGuild.ID}}/{{.ActiveGuild.Icon}}?size=64" alt="Server Icon"
+            class="rounded-circle" />
+        {{else}}
+        <img src="/static/img/questionmark.png" alt="Server Icon" class="rounded-circle" />
+        {{end}}
     </figure>
     <div class="profile-info" data-lock-name="Server Name">
         <span class="name">{{if .ActiveGuild}}{{.ActiveGuild.Name}}{{if .IsGuildPremium}}<i
@@ -280,7 +314,13 @@
     <ul class="list-unstyled mb-2" style="max-height: 500px; overflow-y: auto;">
         <li class="divider"></li>
 
-        {{if .ManagedGuilds}} {{$clientid := .ClientID}} {{$host := .Host}} {{$baseURL := .BaseURL}} {{range $index, $element := .ManagedGuilds -}}{{if $element.Connected -}}
+        {{if .ManagedGuilds}}
+
+        {{$clientid := .ClientID}}
+        {{$host := .Host}}
+        {{$baseURL := .BaseURL}}
+
+        {{range $index, $element := .ManagedGuilds -}}{{if $element.Connected -}}
         <li>
             <a role="menuitem" tabindex="-1" href="/manage/{{$element.ID}}/home">
             {{if $element.Icon}}
@@ -296,22 +336,24 @@
 
         {{range $index, $element := .ManagedGuilds -}}{{if not $element.Connected -}}
         <li>
-            <a href="https://discordapp.com/oauth2/authorize?client_id={{$clientid}}&scope=applications.commands%20bot&permissions=1516122532343&guild_id={{$element.ID}}&response_type=code&redirect_uri={{joinStr "" $baseURL "/manage"}}"><i
+            <a
+                href="https://discordapp.com/oauth2/authorize?client_id={{$clientid}}&scope=applications.commands%20bot&permissions=1516122532343&guild_id={{$element.ID}}&response_type=code&redirect_uri={{joinStr "" $baseURL "/manage"}}"><i
                     class="fas fa-plus"></i>{{$element.Name}}</a>
         </li>
-        {{end}}{{end}} {{else}}
+        {{end}}{{end}}
+        {{else}}
         <li>
-            <a role="menuitem" tabindex="-1" href="#">You do not own or have access to any server's settings.</a>
+             <a role="menuitem" tabindex="-1" href="#">You do not own or have access to any server's settings.</a>
         </li>
         {{end}}
     </ul>
 </div>
 <style>
-    .server-image {
+.server-image {
         width: 25px;
         height: 25px;
         margin-right: 3px;
         vertical-align: middle;
-    }
+}
 </style>
 {{end}}
