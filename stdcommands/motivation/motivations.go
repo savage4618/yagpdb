@@ -29,6 +29,4 @@ var Motivations = []string{
 	"Don't let one asshole ruin your day",
 	"Exhale the bullshit",
 	"Prove them bitches wrong",
-=======
->>>>>>> origin/motivations
 }
