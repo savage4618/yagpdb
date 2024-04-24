@@ -23,3 +23,6 @@ cmd/shardorchestrator/shardorchestrator
 cmd/shardorchestrator/capturepanics
 yagpdb\debug.log
 debug.log
+__debug_bin*
+app.env
+.scannerwork
