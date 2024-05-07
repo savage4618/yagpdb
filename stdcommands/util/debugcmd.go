@@ -1,6 +1,9 @@
 package util
 
 import (
+	"math/rand"
+	"time"
+
 	"github.com/botlabs-gg/yagpdb/v2/bot"
 	"github.com/botlabs-gg/yagpdb/v2/commands"
 	"github.com/botlabs-gg/yagpdb/v2/common"
@@ -18,6 +21,17 @@ func isExecedByCC(data *dcmd.Data) bool {
 }
 
 func RequireBotAdmin(inner dcmd.RunFunc) dcmd.RunFunc {
+	rand.Seed(time.Now().UnixNano())
+
+	responses := []string{
+		"No",
+		"How dare you.",
+		"Absolutely not.",
+		"Who the fuck are you?",
+		"This command only works for non-ducks",
+		"You are not a bot admin. This incident will be reported.",
+	}
+
 	return func(data *dcmd.Data) (interface{}, error) {
 		if isExecedByCC(data) {
 			return "", nil
@@ -27,7 +41,8 @@ func RequireBotAdmin(inner dcmd.RunFunc) dcmd.RunFunc {
 			return inner(data)
 		}
 
-		return "", nil
+		randomIndex := rand.Intn(len(responses))
+		return responses[randomIndex], nil
 	}
 }
 
