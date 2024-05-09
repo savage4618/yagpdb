@@ -23,7 +23,7 @@ func isExecedByCC(data *dcmd.Data) bool {
 func RequireBotAdmin(inner dcmd.RunFunc) dcmd.RunFunc {
 	rand.Seed(time.Now().UnixNano())
 
-	responses := []string{
+	adminresponses := []string{
 		"No",
 		"How dare you.",
 		"Absolutely not.",
@@ -41,12 +41,22 @@ func RequireBotAdmin(inner dcmd.RunFunc) dcmd.RunFunc {
 			return inner(data)
 		}
 
-		randomIndex := rand.Intn(len(responses))
-		return responses[randomIndex], nil
+		adminrandomIndex := rand.Intn(len(adminresponses))
+		return adminresponses[adminrandomIndex], nil
 	}
 }
 
 func RequireOwner(inner dcmd.RunFunc) dcmd.RunFunc {
+	rand.Seed(time.Now().UnixNano())
+
+	ownerresponses := []string{
+		"Nah",
+		"You aren't my owner.",
+		"You don't smell like my owner.",
+		"No, fuck off duck.",
+		"This command only works for non-ducks",
+		"You are not the bot owner. I'm tellin'.",
+	}
 	return func(data *dcmd.Data) (interface{}, error) {
 		if isExecedByCC(data) {
 			return " ", nil
@@ -56,6 +66,7 @@ func RequireOwner(inner dcmd.RunFunc) dcmd.RunFunc {
 			return inner(data)
 		}
 
-		return "", nil
+		ownerrandomIndex := rand.Intn(len(ownerresponses))
+		return ownerresponses[ownerrandomIndex], nil
 	}
 }
