@@ -282,7 +282,7 @@ func handleGetCommand(w http.ResponseWriter, r *http.Request) (web.TemplateData,
 	templateData["IsGuildPremium"] = premium.ContextPremium(r.Context())
 	templateData["MaxCCLength"] = allowedCCLength
 	templateData["PublicLink"] = getPublicLink(cc)
-
+	
 	return serveGroupSelected(r, templateData, cc.GroupID.Int64, cc.GuildID)
 }
 
@@ -791,6 +791,10 @@ func triggerTypeFromForm(str string) CommandTriggerType {
 		return CommandTriggerReaction
 	case "interval_minutes", "interval_hours":
 		return CommandTriggerInterval
+	case "component":
+		return CommandTriggerComponent
+	case "modal":
+		return CommandTriggerModal
 	default:
 		return CommandTriggerCommand
 

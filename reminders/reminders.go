@@ -2,7 +2,6 @@ package reminders
 
 import (
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/botlabs-gg/yagpdb/v2/common"
@@ -61,7 +60,7 @@ func (r *Reminder) Trigger() error {
 
 	logger.WithFields(logrus.Fields{"channel": r.ChannelID, "user": r.UserID, "message": r.Message, "id": r.ID}).Info("Triggered reminder")
 	embed := &discordgo.MessageEmbed{
-		Title:       "Reminder from RandomDadGPDB",
+		Title:       "Reminder from YAGPDB",
 		Description: common.ReplaceServerInvites(r.Message, r.GuildID, "(removed-invite)"),
 	}
 
@@ -79,6 +78,14 @@ func (r *Reminder) Trigger() error {
 		Priority: 10, // above all feeds
 	})
 	return nil
+}
+
+func GetGuildUserReminder(userID, guildID int64) (results []*Reminder, err error) {
+	err = common.GORM.Where(&Reminder{UserID: discordgo.StrID(userID), GuildID: guildID}).Find(&results).Error
+	if err == gorm.ErrRecordNotFound {
+		err = nil
+	}
+	return
 }
 
 func GetUserReminders(userID int64) (results []*Reminder, err error) {
@@ -115,32 +122,4 @@ func NewReminder(userID int64, guildID int64, channelID int64, message string, w
 	err = scheduledevents2.ScheduleEvent("reminders_check_user", guildID, when, userID)
 	// err = scheduledevents.ScheduleEvent("reminders_check_user:"+strconv.FormatInt(whenUnix, 10), discordgo.StrID(userID), when)
 	return reminder, err
-}
-
-func checkUserEvtHandlerLegacy(evt string) error {
-	split := strings.Split(evt, ":")
-	if len(split) < 2 {
-		logger.Error("Handled invalid check user scheduled event: ", evt)
-		return nil
-	}
-
-	parsed, _ := strconv.ParseInt(split[1], 10, 64)
-	reminders, err := GetUserReminders(parsed)
-	if err != nil {
-		return err
-	}
-
-	now := time.Now()
-	nowUnix := now.Unix()
-	for _, v := range reminders {
-		if v.When <= nowUnix {
-			err := v.Trigger()
-			if err != nil {
-				// Try again
-				return err
-			}
-		}
-	}
-
-	return nil
 }
