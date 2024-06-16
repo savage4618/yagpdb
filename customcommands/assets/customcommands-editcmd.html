@@ -82,9 +82,9 @@
                                                     Minute interval
                                                 </option>
                                                 <option value="component" {{if eq .CC.TriggerType 7}} selected{{end}}>
-                                                    Message Component (BETA)</option>
+                                                    Message Component</option>
                                                 <option value="modal" {{if eq .CC.TriggerType 8}} selected{{end}}>
-                                                    Modal Submission (BETA)</option>
+                                                    Modal Submission</option>
                                             </select>
                                         </div>
                                     </div>
@@ -510,13 +510,13 @@
         updateNameLength();
     });
 
-    const intervalTriggerEls = ['#interval-cc-run-now', '#cc-time-trigger-details'];
-    const textTriggerEls = ['#cc-text-trigger-details', '#cc-extra-settings'];
-    const messageTriggerEls = [...textTriggerEls, '#cc-message-trigger-label', '#cc-message-trigger-details'];
-    const interactionTriggerEls = [...textTriggerEls, '#cc-customid-trigger-label'];
+    var intervalTriggerEls = ['#interval-cc-run-now', '#cc-time-trigger-details'];
+    var textTriggerEls = ['#cc-text-trigger-details', '#cc-extra-settings'];
+    var messageTriggerEls = [...textTriggerEls, '#cc-message-trigger-label', '#cc-message-trigger-details'];
+    var interactionTriggerEls = [...textTriggerEls, '#cc-customid-trigger-label'];
 
     // html elements that should be shown for specific trigger types and hidden otherwise
-    const triggerTypeEls = {
+    var triggerTypeEls = {
         modal: [...interactionTriggerEls, '#trigger-desc-modal'],
         component: [...interactionTriggerEls, '#trigger-desc-component'],
         interval_hours: [...intervalTriggerEls, '#trigger-desc-interval_hours'],
@@ -574,7 +574,7 @@
     }
 
     // 'require roles' mode with no required roles
-    const checkNoEmptyRequiredRoles = {
+    var checkNoEmptyRequiredRoles = {
         applicableTriggerTypes: ['modal', 'component', 'reaction', 'cmd', 'prefix', 'contains', 'regex', 'exact'],
         warningId: 'require-no-roles-warning',
         run() {
@@ -597,7 +597,7 @@
     $('#ignore-role-mode').change(() => checkNoEmptyRequiredRoles.run());
     $('#command-roles').change(() => checkNoEmptyRequiredRoles.run());
 
-    const checkNoEmptyRequiredChannels = {
+    var checkNoEmptyRequiredChannels = {
         applicableTriggerTypes: ['modal', 'component', 'reaction', 'cmd', 'prefix', 'contains', 'regex', 'exact'],
         warningId: 'require-no-channels-warning',
         run() {
@@ -620,12 +620,11 @@
     $('#ignore-channel-mode').change(() => checkNoEmptyRequiredChannels.run());
     $('#command-channels').change(() => checkNoEmptyRequiredChannels.run());
 
-    const checkMissingIntervalTriggerChannel = {
+    var checkMissingIntervalTriggerChannel = {
         applicableTriggerTypes: ['interval_hours', 'interval_minutes'],
         warningId: 'time-trigger-no-channel-warning',
         run() {
             const selectedChannel = $('#time-trigger-channel').val();
-            console.log(selectedChannel);
             if (!selectedChannel) {
                 addWarningIfNotExists(this.warningId,
                     "Selecting no channel for an interval command effectively disables your command, meaning it will never run."
@@ -703,6 +702,7 @@
             lineWrapping: true,
             placeholder: 'Command body here',
             viewportMargin: Infinity,
+            electricChars: false,
             extraKeys: {
                 'Ctrl-Space': 'autocomplete',
                 'Alt-F': 'findPersistent',
@@ -711,7 +711,7 @@
         return newInstance;
     }
 
-    const initialTextAreas = document.querySelectorAll('.cc-editor');
+    var initialTextAreas = document.querySelectorAll('.cc-editor');
     initialTextAreas.forEach((initialTextArea) => {
         const codeMirror = setupCodeMirrorInstance(initialTextArea);
         codeMirror.on('change', (cm) => {
