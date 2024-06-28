@@ -113,6 +113,9 @@ var (
 
 		"shuffle": shuffle,
 		"verb":    common.RandomVerb,
+		"hash":    tmplSha256,
+		"decodeBase64": tmplDecodeBase64,
+		"encodeBase64": tmplEncodeBase64,
 
 		// time functions
 		"currentTime":     tmplCurrentTime,
@@ -157,10 +160,12 @@ var GuildPremiumFunc func(guildID int64) (bool, error)
 type ExecutedFromType int
 
 const (
-	ExecutedFromStandard ExecutedFromType = 0
-	ExecutedFromJoin     ExecutedFromType = 1
-	ExecutedFromLeave    ExecutedFromType = 2
-	ExecutedFromEvalCC   ExecutedFromType = 3
+	ExecutedFromStandard              ExecutedFromType = 0
+	ExecutedFromJoin                  ExecutedFromType = 1
+	ExecutedFromLeave                 ExecutedFromType = 2
+	ExecutedFromEvalCC                ExecutedFromType = 3
+	ExecutedFromCommandTemplate       ExecutedFromType = 4
+	ExecutedFromNestedCommandTemplate ExecutedFromType = 5
 )
 
 type Context struct {

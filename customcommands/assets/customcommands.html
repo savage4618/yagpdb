@@ -40,9 +40,13 @@
                 <li class="nav-item {{if and (not .CurrentCommandGroup)}}active{{end}}">
                     <a data-partial-load="true" class="nav-link show {{if not .CurrentCommandGroup}}active{{end}}" href="/manage/{{.ActiveGuild.ID}}/customcommands/">Ungrouped</a>
                 </li>
-                {{$dot := .}} {{range .CommandGroups}}
-                <li class="nav-item {{if $dot.CurrentCommandGroup}}{{if eq $dot.CurrentCommandGroup.ID .ID}}active{{end}}{{end}}">
-                    <a data-partial-load="true" class="nav-link show {{if $dot.CurrentCommandGroup}}{{if eq $dot.CurrentCommandGroup.ID .ID}}active{{end}}{{end}}" href="/manage/{{$dot.ActiveGuild.ID}}/customcommands/groups/{{.ID}}">{{.Name}}</a>
+                {{$dot := .}}
+                {{range .CommandGroups}}
+                <li
+                    class="nav-item {{if $dot.CurrentCommandGroup}}{{if eq $dot.CurrentCommandGroup.ID .ID}}active{{end}}{{end}}">
+                    <a data-partial-load="true"
+                        class="nav-link show {{if $dot.CurrentCommandGroup}}{{if eq $dot.CurrentCommandGroup.ID .ID}}active{{end}}{{end}}"
+                        href="/manage/{{$dot.ActiveGuild.ID}}/customcommands/groups/{{.ID}}">{{.Name}}{{if .Disabled}} <code>Disabled</code>{{end}}</a>
                 </li>
                 {{end}}
                 <li class="nav-item">
@@ -94,7 +98,14 @@
                                     </select>
                                 </div>
                                 <div class="form-group">
-                                    <button type="submit" title="Group #{{.CurrentCommandGroup.ID}} - {{.CurrentCommandGroup.Name}} &#013;Deleted group's commands become ungrouped." class="btn btn-danger" formaction="/manage/{{.ActiveGuild.ID}}/customcommands/groups/{{.CurrentCommandGroup.ID}}/delete">Delete
+                                    <label>Group disabled</label><br>
+                                    {{checkbox "disabled" "disabled" "Enables or Disables the group" .CurrentCommandGroup.Disabled}}
+                                </div>
+                                <div class="form-group">
+                                    <button type="submit"
+                                        title="Group #{{.CurrentCommandGroup.ID}} - {{.CurrentCommandGroup.Name}} &#013;Deleted group's commands become ungrouped."
+                                        class="btn btn-danger"
+                                        formaction="/manage/{{.ActiveGuild.ID}}/customcommands/groups/{{.CurrentCommandGroup.ID}}/delete">Delete
                                         group</button>
                                 </div>
                             </div>

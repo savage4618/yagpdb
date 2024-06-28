@@ -25,6 +25,8 @@ const (
 	CtxKeyCmdSettings CtxKey = iota
 	CtxKeyChannelOverride
 	CtxKeyExecutedByCC
+	CtxKeyExecutedByCommandTemplate
+	CtxKeyExecutedByNestedCommandTemplate
 )
 
 type MessageFilterFunc func(evt *eventsystem.EventData, msg *discordgo.Message) bool
@@ -49,10 +51,6 @@ func (p *Plugin) PluginInfo() *common.PluginInfo {
 func RegisterPlugin() {
 	plugin := &Plugin{}
 	common.RegisterPlugin(plugin)
-	err := common.GORM.AutoMigrate(&common.LoggedExecutedCommand{}).Error
-	if err != nil {
-		logger.WithError(err).Fatal("Failed migrating logged commands database")
-	}
 
 	common.InitSchemas("commands", DBSchemas...)
 }

@@ -2,6 +2,7 @@ package moderation
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"strconv"
 	"strings"
@@ -16,8 +17,9 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dstate"
 	"github.com/botlabs-gg/yagpdb/v2/logs"
-	"github.com/jinzhu/gorm"
+	"github.com/botlabs-gg/yagpdb/v2/moderation/models"
 	"github.com/mediocregopher/radix/v3"
+	"github.com/volatiletech/sqlboiler/v4/boil"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
 
@@ -51,9 +53,9 @@ func getMemberWithFallback(gs *dstate.GuildSet, user *discordgo.User) (ms *dstat
 }
 
 // Kick or bans someone, uploading a hasebin log, and sending the report message in the action channel
-func punish(config *Config, p Punishment, guildID int64, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, reason string, user *discordgo.User, duration time.Duration, variadicBanDeleteDays ...int) error {
+func punish(config *Config, p Punishment, guildID int64, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, reason string, user *discordgo.User, duration time.Duration, executedFromCommandTemplate bool, variadicBanDeleteDays ...int) error {
 
-	config, err := getConfigIfNotSet(guildID, config)
+	config, err := GetConfigIfNotSet(guildID, config)
 	if err != nil {
 		return common.ErrWithCaller(err)
 	}
@@ -88,7 +90,7 @@ func punish(config *Config, p Punishment, guildID int64, channel *dstate.Channel
 	gs := bot.State.GetGuild(guildID)
 	member, memberNotFound := getMemberWithFallback(gs, user)
 	if !memberNotFound {
-		sendPunishDM(config, msg, action, gs, channel, message, author, member, duration, reason, -1)
+		sendPunishDM(config, msg, action, gs, channel, message, author, member, duration, reason, -1, executedFromCommandTemplate)
 	}
 
 	logLink := ""
@@ -164,13 +166,18 @@ var ActionMap = map[string]string{
 	MATimeoutAdded.Prefix: "Timeout DM",
 }
 
-func sendPunishDM(config *Config, dmMsg string, action ModlogAction, gs *dstate.GuildSet, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, member *dstate.MemberState, duration time.Duration, reason string, warningID int) {
+func sendPunishDM(config *Config, dmMsg string, action ModlogAction, gs *dstate.GuildSet, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, member *dstate.MemberState, duration time.Duration, reason string, warningID int, executedFromCommandTemplate bool) {
 	if dmMsg == "" {
 		dmMsg = DefaultDMMessage
 	}
 
 	// Execute and send the DM message template
 	ctx := templates.NewContext(gs, channel, member)
+	if executedFromCommandTemplate {
+		ctx.ExecutedFrom = templates.ExecutedFromNestedCommandTemplate
+	} else {
+		ctx.ExecutedFrom = templates.ExecutedFromCommandTemplate
+	}
 	ctx.Data["Reason"] = reason
 	if duration > 0 {
 		ctx.Data["Duration"] = duration
@@ -196,8 +203,8 @@ func sendPunishDM(config *Config, dmMsg string, action ModlogAction, gs *dstate.
 		logger.WithError(err).WithField("guild", gs.ID).Warn("Failed executing punishment DM")
 		executed = "Failed executing template."
 
-		if config.ErrorChannel != "" {
-			_, _, _ = bot.SendMessage(gs.ID, config.IntErrorChannel(), fmt.Sprintf("Failed executing punishment DM (Action: `%s`).\nError: `%v`", ActionMap[action.Prefix], err))
+		if config.ErrorChannel != 0 {
+			_, _, _ = bot.SendMessage(gs.ID, config.ErrorChannel, fmt.Sprintf("Failed executing punishment DM (Action: `%s`).\nError: `%v`", ActionMap[action.Prefix], err))
 		}
 	}
 
@@ -209,13 +216,13 @@ func sendPunishDM(config *Config, dmMsg string, action ModlogAction, gs *dstate.
 	}
 }
 
-func KickUser(config *Config, guildID int64, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, reason string, user *discordgo.User, del int) error {
-	config, err := getConfigIfNotSet(guildID, config)
+func KickUser(config *Config, guildID int64, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, reason string, user *discordgo.User, del int, executedFromCommandTemplate bool) error {
+	config, err := GetConfigIfNotSet(guildID, config)
 	if err != nil {
 		return common.ErrWithCaller(err)
 	}
 
-	err = punish(config, PunishmentKick, guildID, channel, message, author, reason, user, 0)
+	err = punish(config, PunishmentKick, guildID, channel, message, author, reason, user, 0, executedFromCommandTemplate)
 	if err != nil {
 		return err
 	}
@@ -226,10 +233,7 @@ func KickUser(config *Config, guildID int64, channel *dstate.ChannelState, messa
 		del = 100
 	}
 
-	if channel != nil {
-		_, err = DeleteMessages(guildID, channel.ID, user.ID, del, del)
-	}
-
+	_, err = DeleteMessages(guildID, channel.ID, user.ID, del, del)
 	return err
 }
 
@@ -272,7 +276,7 @@ func DeleteMessages(guildID, channelID int64, filterUser int64, deleteNum, fetch
 	return len(toDelete), err
 }
 
-func BanUserWithDuration(config *Config, guildID int64, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, reason string, user *discordgo.User, duration time.Duration, deleteMessageDays int) error {
+func BanUserWithDuration(config *Config, guildID int64, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, reason string, user *discordgo.User, duration time.Duration, deleteMessageDays int, executedByCommandTemplate bool) error {
 	// Set a key in redis that marks that this user has appeared in the modlog already
 	common.RedisPool.Do(radix.Cmd(nil, "SETEX", RedisKeyBannedUser(guildID, user.ID), "60", "1"))
 	if deleteMessageDays > 7 {
@@ -282,7 +286,7 @@ func BanUserWithDuration(config *Config, guildID int64, channel *dstate.ChannelS
 		deleteMessageDays = 0
 	}
 
-	err := punish(config, PunishmentBan, guildID, channel, message, author, reason, user, duration, deleteMessageDays)
+	err := punish(config, PunishmentBan, guildID, channel, message, author, reason, user, duration, executedByCommandTemplate, deleteMessageDays)
 	if err != nil {
 		return err
 	}
@@ -302,12 +306,12 @@ func BanUserWithDuration(config *Config, guildID int64, channel *dstate.ChannelS
 	return nil
 }
 
-func BanUser(config *Config, guildID int64, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, reason string, user *discordgo.User) error {
-	return BanUserWithDuration(config, guildID, channel, message, author, reason, user, 0, 1)
+func BanUser(config *Config, guildID int64, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, reason string, user *discordgo.User, executedByCommandTemplate bool) error {
+	return BanUserWithDuration(config, guildID, channel, message, author, reason, user, 0, 1, executedByCommandTemplate)
 }
 
 func UnbanUser(config *Config, guildID int64, author *discordgo.User, reason string, user *discordgo.User) (bool, error) {
-	config, err := getConfigIfNotSet(guildID, config)
+	config, err := GetConfigIfNotSet(guildID, config)
 	if err != nil {
 		return false, common.ErrWithCaller(err)
 	}
@@ -318,7 +322,7 @@ func UnbanUser(config *Config, guildID int64, author *discordgo.User, reason str
 	common.LogIgnoreError(err, "[moderation] failed clearing unban events", nil)
 
 	//We need details for user only if unban is to be logged in modlog. Thus we can save a potential api call by directly attempting an unban in other cases.
-	if config.LogUnbans && config.IntActionChannel() != 0 {
+	if config.LogUnbans && config.ActionChannel != 0 {
 		// check if they're already banned
 		guildBan, err := common.BotSession.GuildBan(guildID, user.ID)
 		if err != nil {
@@ -352,8 +356,8 @@ func UnbanUser(config *Config, guildID int64, author *discordgo.User, reason str
 	return false, err
 }
 
-func TimeoutUser(config *Config, guildID int64, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, reason string, user *discordgo.User, duration time.Duration) error {
-	err := punish(config, PunishmentTimeout, guildID, channel, message, author, reason, user, duration, 0)
+func TimeoutUser(config *Config, guildID int64, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, reason string, user *discordgo.User, duration time.Duration, executedByCommandTemplate bool) error {
+	err := punish(config, PunishmentTimeout, guildID, channel, message, author, reason, user, duration, executedByCommandTemplate, 0)
 	if err != nil {
 		return err
 	}
@@ -362,7 +366,7 @@ func TimeoutUser(config *Config, guildID int64, channel *dstate.ChannelState, me
 }
 
 func RemoveTimeout(config *Config, guildID int64, author *discordgo.User, reason string, user *discordgo.User) error {
-	config, err := getConfigIfNotSet(guildID, config)
+	config, err := GetConfigIfNotSet(guildID, config)
 	if err != nil {
 		return common.ErrWithCaller(err)
 	}
@@ -402,13 +406,13 @@ const (
 
 // Unmut or mute a user, ignore duration if unmuting
 // TODO: i don't think we need to track mutes in its own database anymore now with the new scheduled event system
-func MuteUnmuteUser(config *Config, mute bool, guildID int64, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, reason string, member *dstate.MemberState, duration int) error {
-	config, err := getConfigIfNotSet(guildID, config)
+func MuteUnmuteUser(config *Config, mute bool, guildID int64, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, reason string, member *dstate.MemberState, duration int, executedByCommandTemplate bool) error {
+	config, err := GetConfigIfNotSet(guildID, config)
 	if err != nil {
 		return common.ErrWithCaller(err)
 	}
 
-	if config.MuteRole == "" {
+	if config.MuteRole == 0 {
 		return ErrNoMuteRole
 	}
 
@@ -422,16 +426,18 @@ func MuteUnmuteUser(config *Config, mute bool, guildID int64, channel *dstate.Ch
 	defer UnlockMute(member.User.ID)
 
 	// Look for existing mute
-	currentMute := MuteModel{}
-	err = common.GORM.Where(&MuteModel{UserID: member.User.ID, GuildID: guildID}).First(&currentMute).Error
-	alreadyMuted := err != gorm.ErrRecordNotFound
-	if err != nil && err != gorm.ErrRecordNotFound {
+	currentMute, err := models.MutedUsers(
+		models.MutedUserWhere.UserID.EQ(member.User.ID),
+		models.MutedUserWhere.GuildID.EQ(guildID),
+	).OneG(context.Background())
+	alreadyMuted := err != sql.ErrNoRows
+	if err != nil && err != sql.ErrNoRows {
 		return common.ErrWithCaller(err)
 	}
 
 	// Insert/update the mute entry in the database
 	if !alreadyMuted {
-		currentMute = MuteModel{
+		currentMute = &models.MutedUser{
 			UserID:  member.User.ID,
 			GuildID: guildID,
 		}
@@ -443,7 +449,9 @@ func MuteUnmuteUser(config *Config, mute bool, guildID int64, channel *dstate.Ch
 
 	currentMute.Reason = reason
 	if duration > 0 {
-		currentMute.ExpiresAt = time.Now().Add(time.Minute * time.Duration(duration))
+		currentMute.ExpiresAt.SetValid(time.Now().Add(time.Minute * time.Duration(duration)))
+	} else {
+		currentMute.ExpiresAt.Valid = false // duration <= 0 means no expiry
 	}
 
 	// no matter what, if were unmuting or muting, we wanna make sure we dont have duplicated unmute events
@@ -475,7 +483,7 @@ func MuteUnmuteUser(config *Config, mute bool, guildID int64, channel *dstate.Ch
 			currentMute.RemovedRoles = removedRoles
 		}
 
-		err = common.GORM.Save(&currentMute).Error
+		err = currentMute.UpsertG(context.Background(), true, []string{"id"}, boil.Infer(), boil.Infer())
 		if err != nil {
 			return errors.WithMessage(err, "failed inserting/updating mute")
 		}
@@ -496,7 +504,7 @@ func MuteUnmuteUser(config *Config, mute bool, guildID int64, channel *dstate.Ch
 		}
 
 		if alreadyMuted {
-			common.GORM.Delete(&currentMute)
+			currentMute.DeleteG(context.Background())
 			common.RedisPool.Do(radix.Cmd(nil, "DEL", RedisKeyMutedUser(guildID, member.User.ID)))
 		}
 	}
@@ -522,7 +530,7 @@ func MuteUnmuteUser(config *Config, mute bool, guildID int64, channel *dstate.Ch
 
 	gs := bot.State.GetGuild(guildID)
 	if gs != nil {
-		go sendPunishDM(config, dmMsg, action, gs, channel, message, author, member, time.Duration(duration)*time.Minute, reason, -1)
+		go sendPunishDM(config, dmMsg, action, gs, channel, message, author, member, time.Duration(duration)*time.Minute, reason, -1, executedByCommandTemplate)
 	}
 
 	// Create the modlog entry
@@ -532,11 +540,11 @@ func MuteUnmuteUser(config *Config, mute bool, guildID int64, channel *dstate.Ch
 func AddMemberMuteRole(config *Config, id int64, currentRoles []int64) (removedRoles []int64, err error) {
 	removedRoles = make([]int64, 0, len(config.MuteRemoveRoles))
 	newMemberRoles := make([]string, 0, len(currentRoles))
-	newMemberRoles = append(newMemberRoles, config.MuteRole)
+	newMemberRoles = append(newMemberRoles, discordgo.StrID(config.MuteRole))
 
 	hadMuteRole := false
 	for _, r := range currentRoles {
-		if config.IntMuteRole() == r {
+		if r == config.MuteRole {
 			hadMuteRole = true
 			continue
 		}
@@ -557,13 +565,13 @@ func AddMemberMuteRole(config *Config, id int64, currentRoles []int64) (removedR
 	return
 }
 
-func RemoveMemberMuteRole(config *Config, id int64, currentRoles []int64, mute MuteModel) (err error) {
+func RemoveMemberMuteRole(config *Config, id int64, currentRoles []int64, mute *models.MutedUser) (err error) {
 	newMemberRoles := decideUnmuteRoles(config, currentRoles, mute)
 	err = common.BotSession.GuildMemberEdit(config.GuildID, id, newMemberRoles)
 	return
 }
 
-func decideUnmuteRoles(config *Config, currentRoles []int64, mute MuteModel) []string {
+func decideUnmuteRoles(config *Config, currentRoles []int64, mute *models.MutedUser) []string {
 	newMemberRoles := make([]string, 0)
 
 	gs := bot.State.GetGuild(config.GuildID)
@@ -571,7 +579,7 @@ func decideUnmuteRoles(config *Config, currentRoles []int64, mute MuteModel) []s
 
 	if err != nil || botState == nil { // We couldn't find the bot on state, so keep old behaviour
 		for _, r := range currentRoles {
-			if r != config.IntMuteRole() {
+			if r != config.MuteRole {
 				newMemberRoles = append(newMemberRoles, strconv.FormatInt(r, 10))
 			}
 		}
@@ -588,7 +596,7 @@ func decideUnmuteRoles(config *Config, currentRoles []int64, mute MuteModel) []s
 	yagHighest := bot.MemberHighestRole(gs, botState)
 
 	for _, v := range currentRoles {
-		if v != config.IntMuteRole() {
+		if v != config.MuteRole {
 			newMemberRoles = append(newMemberRoles, strconv.FormatInt(v, 10))
 		}
 	}
@@ -603,8 +611,8 @@ func decideUnmuteRoles(config *Config, currentRoles []int64, mute MuteModel) []s
 	return newMemberRoles
 }
 
-func WarnUser(config *Config, guildID int64, channel *dstate.ChannelState, msg *discordgo.Message, author *discordgo.User, target *discordgo.User, message string) error {
-	warning := &WarningModel{
+func WarnUser(config *Config, guildID int64, channel *dstate.ChannelState, msg *discordgo.Message, author *discordgo.User, target *discordgo.User, message string, executedByCommandTemplate bool) error {
+	warning := &models.ModerationWarning{
 		GuildID:               guildID,
 		UserID:                discordgo.StrID(target.ID),
 		AuthorID:              discordgo.StrID(author.ID),
@@ -618,17 +626,17 @@ func WarnUser(config *Config, guildID int64, channel *dstate.ChannelState, msg *
 		channelID = channel.ID
 	}
 
-	config, err := getConfigIfNotSet(guildID, config)
+	config, err := GetConfigIfNotSet(guildID, config)
 	if err != nil {
 		return common.ErrWithCaller(err)
 	}
 
 	if config.WarnIncludeChannelLogs && channelID != 0 {
-		warning.LogsLink = CreateLogs(guildID, channelID, author)
+		warning.LogsLink.SetValid(CreateLogs(guildID, channelID, author))
 	}
 
 	// Create the entry in the database
-	err = common.GORM.Create(warning).Error
+	err = warning.InsertG(context.Background(), boil.Infer())
 	if err != nil {
 		return common.ErrWithCaller(err)
 	}
@@ -636,13 +644,13 @@ func WarnUser(config *Config, guildID int64, channel *dstate.ChannelState, msg *
 	gs := bot.State.GetGuild(guildID)
 	ms, _ := bot.GetMember(guildID, target.ID)
 	if gs != nil && ms != nil {
-		sendPunishDM(config, config.WarnMessage, MAWarned, gs, channel, msg, author, ms, -1, message, int(warning.ID))
+		sendPunishDM(config, config.WarnMessage, MAWarned, gs, channel, msg, author, ms, -1, message, int(warning.ID), executedByCommandTemplate)
 	}
 
 	// go bot.SendDM(target.ID, fmt.Sprintf("**%s**: You have been warned for: %s", bot.GuildName(guildID), message))
 
-	if config.WarnSendToModlog && config.ActionChannel != "" {
-		err = CreateModlogEmbed(config, author, MAWarned, target, message, warning.LogsLink)
+	if config.WarnSendToModlog && config.ActionChannel != 0 {
+		err = CreateModlogEmbed(config, author, MAWarned, target, message, warning.LogsLink.String)
 		if err != nil {
 			return common.ErrWithCaller(err)
 		}

@@ -176,13 +176,21 @@ func (pa *ParsedArgs) IsSet(index int) interface{} {
 // or schedules a custom command to be run in the future sometime with the provided data placed in .ExecData
 func tmplRunCC(ctx *templates.Context) interface{} {
 	return func(ccID int, channel interface{}, delaySeconds interface{}, data interface{}) (string, error) {
+		if ctx.ExecutedFrom == templates.ExecutedFromNestedCommandTemplate {
+			return "", nil
+		}
+
 		if ctx.IncreaseCheckCallCounterPremium("runcc", 1, 10) {
 			return "", templates.ErrTooManyCalls
 		}
 
-		cmd, err := models.FindCustomCommandG(context.Background(), ctx.GS.ID, int64(ccID))
+		cmd, err := models.CustomCommands(qm.Where("guild_id = ? AND local_id = ?", ctx.GS.ID, ccID), qm.Load("Group")).OneG(context.Background())
 		if err != nil {
 			return "", errors.New("Couldn't find custom command")
+		}
+
+		if cmd.R.Group != nil && cmd.R.Group.Disabled {
+			return "", errors.New("custom command group is disabled")
 		}
 
 		if cmd.Disabled {
@@ -275,9 +283,13 @@ func tmplScheduleUniqueCC(ctx *templates.Context) interface{} {
 			return "", templates.ErrTooManyCalls
 		}
 
-		cmd, err := models.FindCustomCommandG(context.Background(), ctx.GS.ID, int64(ccID))
+		cmd, err := models.CustomCommands(qm.Where("guild_id = ? AND local_id = ?", ctx.GS.ID, ccID), qm.Load("Group")).OneG(context.Background())
 		if err != nil {
 			return "", errors.New("Couldn't find custom command")
+		}
+
+		if cmd.R.Group != nil && cmd.R.Group.Disabled {
+			return "", errors.New("custom command group is disabled")
 		}
 
 		if cmd.Disabled {

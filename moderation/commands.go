@@ -1,6 +1,8 @@
 package moderation
 
 import (
+	"context"
+	"database/sql"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -19,12 +21,13 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dstate"
 	"github.com/botlabs-gg/yagpdb/v2/logs"
+	"github.com/botlabs-gg/yagpdb/v2/moderation/models"
 	"github.com/botlabs-gg/yagpdb/v2/web"
-	"github.com/jinzhu/gorm"
+	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
 
 func MBaseCmd(cmdData *dcmd.Data, targetID int64) (config *Config, targetUser *discordgo.User, err error) {
-	config, err = GetConfig(cmdData.GuildData.GS.ID)
+	config, err = GetCachedConfigOrDefault(cmdData.GuildData.GS.ID)
 	if err != nil {
 		return nil, nil, errors.WithMessage(err, "GetConfig")
 	}
@@ -166,6 +169,10 @@ var ModerationCommands = []*commands.YAGCommand{
 		DefaultEnabled:           false,
 		IsResponseEphemeral:      true,
 		RunFunc: func(parsed *dcmd.Data) (interface{}, error) {
+			if parsed.Context().Value(commands.CtxKeyExecutedByNestedCommandTemplate) == true {
+				return nil, errors.New("cannot nest exec/execAdmin calls")
+			}
+
 			config, target, err := MBaseCmd(parsed, parsed.Args[0].Int64())
 			if err != nil {
 				return nil, err
@@ -196,7 +203,7 @@ var ModerationCommands = []*commands.YAGCommand{
 			if parsed.TraditionalTriggerData != nil {
 				msg = parsed.TraditionalTriggerData.Message
 			}
-			err = BanUserWithDuration(config, parsed.GuildData.GS.ID, parsed.GuildData.CS, msg, parsed.Author, reason, target, banDuration, ddays)
+			err = BanUserWithDuration(config, parsed.GuildData.GS.ID, parsed.GuildData.CS, msg, parsed.Author, reason, target, banDuration, ddays, parsed.Context().Value(commands.CtxKeyExecutedByCommandTemplate) == true)
 			if err != nil {
 				return nil, err
 			}
@@ -272,6 +279,10 @@ var ModerationCommands = []*commands.YAGCommand{
 		SlashCommandEnabled: true,
 		IsResponseEphemeral: true,
 		RunFunc: func(parsed *dcmd.Data) (interface{}, error) {
+			if parsed.Context().Value(commands.CtxKeyExecutedByNestedCommandTemplate) == true {
+				return nil, errors.New("cannot nest exec/execAdmin calls")
+			}
+
 			config, target, err := MBaseCmd(parsed, parsed.Args[0].Int64())
 			if err != nil {
 				return nil, err
@@ -307,7 +318,7 @@ var ModerationCommands = []*commands.YAGCommand{
 				msg = parsed.TraditionalTriggerData.Message
 			}
 
-			err = KickUser(config, parsed.GuildData.GS.ID, parsed.GuildData.CS, msg, parsed.Author, reason, target, toDel)
+			err = KickUser(config, parsed.GuildData.GS.ID, parsed.GuildData.CS, msg, parsed.Author, reason, target, toDel, parsed.Context().Value(commands.CtxKeyExecutedByCommandTemplate) == true)
 			if err != nil {
 				return nil, err
 			}
@@ -332,12 +343,16 @@ var ModerationCommands = []*commands.YAGCommand{
 		DefaultEnabled:           false,
 		IsResponseEphemeral:      true,
 		RunFunc: func(parsed *dcmd.Data) (interface{}, error) {
+			if parsed.Context().Value(commands.CtxKeyExecutedByNestedCommandTemplate) == true {
+				return nil, errors.New("cannot nest exec/execAdmin calls")
+			}
+
 			config, target, err := MBaseCmd(parsed, parsed.Args[0].Int64())
 			if err != nil {
 				return nil, err
 			}
 
-			if config.MuteRole == "" {
+			if config.MuteRole == 0 {
 				return fmt.Sprintf("No mute role selected. Select one at <%s/moderation>", web.ManageServerURL(parsed.GuildData)), nil
 			}
 
@@ -366,7 +381,7 @@ var ModerationCommands = []*commands.YAGCommand{
 			if parsed.TraditionalTriggerData != nil {
 				msg = parsed.TraditionalTriggerData.Message
 			}
-			err = MuteUnmuteUser(config, true, parsed.GuildData.GS.ID, parsed.GuildData.CS, msg, parsed.Author, reason, member, int(d.Minutes()))
+			err = MuteUnmuteUser(config, true, parsed.GuildData.GS.ID, parsed.GuildData.CS, msg, parsed.Author, reason, member, int(d.Minutes()), parsed.Context().Value(commands.CtxKeyExecutedByCommandTemplate) == true)
 			if err != nil {
 				return nil, err
 			}
@@ -391,12 +406,16 @@ var ModerationCommands = []*commands.YAGCommand{
 		DefaultEnabled:           false,
 		IsResponseEphemeral:      true,
 		RunFunc: func(parsed *dcmd.Data) (interface{}, error) {
+			if parsed.Context().Value(commands.CtxKeyExecutedByNestedCommandTemplate) == true {
+				return nil, errors.New("cannot nest exec/execAdmin calls")
+			}
+
 			config, target, err := MBaseCmd(parsed, parsed.Args[0].Int64())
 			if err != nil {
 				return nil, err
 			}
 
-			if config.MuteRole == "" {
+			if config.MuteRole == 0 {
 				return "No mute role set up, assign a mute role in the control panel", nil
 			}
 
@@ -415,7 +434,7 @@ var ModerationCommands = []*commands.YAGCommand{
 			if parsed.TraditionalTriggerData != nil {
 				msg = parsed.TraditionalTriggerData.Message
 			}
-			err = MuteUnmuteUser(config, false, parsed.GuildData.GS.ID, parsed.GuildData.CS, msg, parsed.Author, reason, member, 0)
+			err = MuteUnmuteUser(config, false, parsed.GuildData.GS.ID, parsed.GuildData.CS, msg, parsed.Author, reason, member, 0, parsed.Context().Value(commands.CtxKeyExecutedByCommandTemplate) == true)
 			if err != nil {
 				return nil, err
 			}
@@ -441,6 +460,9 @@ var ModerationCommands = []*commands.YAGCommand{
 		DefaultEnabled:           false,
 		IsResponseEphemeral:      true,
 		RunFunc: func(parsed *dcmd.Data) (interface{}, error) {
+			if parsed.Context().Value(commands.CtxKeyExecutedByNestedCommandTemplate) == true {
+				return nil, errors.New("cannot nest exec/execAdmin calls")
+			}
 			config, target, err := MBaseCmd(parsed, parsed.Args[0].Int64())
 			if err != nil {
 				return nil, err
@@ -471,7 +493,7 @@ var ModerationCommands = []*commands.YAGCommand{
 			if parsed.TraditionalTriggerData != nil {
 				msg = parsed.TraditionalTriggerData.Message
 			}
-			err = TimeoutUser(config, parsed.GuildData.GS.ID, parsed.GuildData.CS, msg, parsed.Author, reason, &member.User, d)
+			err = TimeoutUser(config, parsed.GuildData.GS.ID, parsed.GuildData.CS, msg, parsed.Author, reason, &member.User, d, parsed.Context().Value(commands.CtxKeyExecutedByCommandTemplate) == true)
 			if err != nil {
 				return nil, err
 			}
@@ -562,7 +584,7 @@ var ModerationCommands = []*commands.YAGCommand{
 
 			logLink := CreateLogs(parsed.GuildData.GS.ID, parsed.GuildData.CS.ID, parsed.Author)
 
-			channelID := config.IntReportChannel()
+			channelID := config.ReportChannel
 			if channelID == 0 {
 				return "No report channel set up", nil
 			}
@@ -642,118 +664,114 @@ var ModerationCommands = []*commands.YAGCommand{
 				return nil, err
 			}
 
-			userFilter := parsed.Args[1].Int64()
+			var filters []MessageFilter
 
-			num := parsed.Args[0].Int()
-
-			var triggerID int64
-			ignoreTrigger := parsed.Source != dcmd.TriggerSourceDM && parsed.Context().Value(commands.CtxKeyExecutedByCC) == nil
-			if ignoreTrigger {
-				if parsed.TriggerType == dcmd.TriggerTypeSlashCommands {
-					m, err := common.BotSession.GetOriginalInteractionResponse(common.BotApplication.ID, parsed.SlashCommandTriggerData.Interaction.Token)
-					if err != nil {
-						return nil, err
-					}
-
-					triggerID = m.ID
-				} else {
-					triggerID = parsed.TraditionalTriggerData.Message.ID
-				}
+			if userIDFilter := parsed.Args[1].Int64(); userIDFilter != 0 {
+				filters = append(filters, &MessageAuthorFilter{userIDFilter})
 			}
 
-			if num > 100 {
-				num = 100
-			}
-
-			if num < 1 {
-				if num < 0 {
-					return errors.New("Bot is having a stroke <https://www.youtube.com/watch?v=dQw4w9WgXcQ>"), nil
-				}
-				return errors.New("Can't delete nothing"), nil
-			}
-
-			filtered := false
-
-			// Check if we should regex match this
-			re := ""
-			if parsed.Switches["r"].Value != nil {
-				filtered = true
-				re = parsed.Switches["r"].Str()
-
-				// Add the case insensitive flag if needed
-				if parsed.Switches["i"].Value != nil && parsed.Switches["i"].Value.(bool) {
+			if re := parsed.Switches["r"].Str(); re != "" {
+				if caseInsensitive := parsed.Switches["i"].Bool(); caseInsensitive {
 					if !strings.HasPrefix(re, "(?i)") {
 						re = "(?i)" + re
 					}
 				}
-			}
-			invertRegexMatch := parsed.Switch("im").Value != nil && parsed.Switch("im").Value.(bool)
 
-			// Check if we have a max age
-			ma := parsed.Switches["ma"].Value.(time.Duration)
-			if ma != 0 {
-				filtered = true
+				parsedRe, err := regexp.Compile(re)
+				if err != nil {
+					return "Invalid regexp", err
+				}
+
+				invertMatch := parsed.Switches["im"].Bool()
+				filters = append(filters, &RegExpFilter{InvertMatch: invertMatch, Re: parsedRe})
 			}
 
-			// Check if we have a min age
+			now := time.Now()
 			minAge := parsed.Switches["minage"].Value.(time.Duration)
-			if minAge != 0 {
-				filtered = true
+			maxAge := parsed.Switches["ma"].Value.(time.Duration)
+			if minAge != 0 || maxAge != 0 {
+				filters = append(filters, &MessageAgeFilter{ReferenceTime: now, MinAge: minAge, MaxAge: maxAge})
 			}
 
-			// Check if set to break at a certain ID
-			toID := int64(0)
-			if parsed.Switches["to"].Value != nil {
-				filtered = true
-				toID = parsed.Switches["to"].Int64()
+			fromID := parsed.Switches["from"].Int64()
+			toID := parsed.Switches["to"].Int64()
+			if fromID != 0 || toID != 0 {
+				filters = append(filters, &MessageIDFilter{FromID: fromID, ToID: toID})
 			}
 
-			// Check if set to break at a certain ID
-			fromID := int64(0)
-			if parsed.Switches["from"].Value != nil {
-				filtered = true
-				fromID = parsed.Switches["from"].Int64()
+			if parsed.Switches["nopin"].Bool() {
+				pinned, err := common.BotSession.ChannelMessagesPinned(parsed.ChannelID)
+				if err != nil {
+					return "Failed fetching pinned messages", err
+				}
+				filters = append(filters, NewIgnorePinnedMessagesFilter(pinned))
 			}
 
-			if toID > 0 && fromID > 0 && fromID < toID {
-				return errors.New("from messageID cannot be less than to messageID"), nil
+			if onlyDeleteWithAttachments := parsed.Switches["a"].Bool(); onlyDeleteWithAttachments {
+				filters = append(filters, &MessagesWithAttachmentsFilter{})
 			}
 
-			// Check if we should ignore pinned messages
-			pe := false
-			if parsed.Switches["nopin"].Value != nil && parsed.Switches["nopin"].Value.(bool) {
-				pe = true
-				filtered = true
+			var triggerID int64
+			if parsed.TriggerType == dcmd.TriggerTypeSlashCommands {
+				m, err := common.BotSession.GetOriginalInteractionResponse(common.BotApplication.ID, parsed.SlashCommandTriggerData.Interaction.Token)
+				if err != nil {
+					return "Failed fetching original interaction response", err
+				}
+				triggerID = m.ID
+			} else {
+				triggerID = parsed.TraditionalTriggerData.Message.ID
 			}
 
-			// Check if we should only delete messages with attachments
-			attachments := false
-			if parsed.Switches["a"].Value != nil && parsed.Switches["a"].Value.(bool) {
-				attachments = true
-				filtered = true
+			deleteLimit := parsed.Args[0].Int()
+			fetchLimit := deleteLimit + 1 // +1 for triggering message
+			if len(filters) > 0 {
+				fetchLimit = deleteLimit * 50
+			}
+			if fetchLimit > 1000 {
+				fetchLimit = 1000
 			}
 
-			limitFetch := num
-			if userFilter != 0 || filtered {
-				limitFetch = num * 50 // Maybe just change to full fetch?
+			msgs, err := bot.GetMessages(parsed.GuildData.GS.ID, parsed.ChannelID, fetchLimit, false)
+			if err != nil {
+				return "Failed fetching messages", err
 			}
 
-			if ignoreTrigger {
-				limitFetch++
-			}
-			if limitFetch > 1000 {
-				limitFetch = 1000
+			var toDelete []int64
+			filter := CombinedANDFilter{filters} // all filters need to match for message to be deleted
+			for _, msg := range msgs {
+				// Can only bulk delete messages up to 2 weeks old (but add 1 minute buffer to be safe.)
+				if now.Sub(msg.ParsedCreatedAt) > (14*time.Hour*24)-time.Minute {
+					continue
+				}
+				// Don't delete the trigger message.
+				if msg.ID == triggerID {
+					continue
+				}
+
+				if filter.Matches(msg) {
+					toDelete = append(toDelete, msg.ID)
+					if len(toDelete) >= deleteLimit {
+						break
+					}
+				}
 			}
 
-			// Wait a second so the client dosen't gltich out
-			time.Sleep(time.Second)
-
-			numDeleted, err := AdvancedDeleteMessages(parsed.GuildData.GS.ID, parsed.ChannelID, triggerID, userFilter, re, invertRegexMatch, toID, fromID, ma, minAge, pe, attachments, num, limitFetch)
-			deleteMessageWord := "messages"
-			if numDeleted == 1 {
-				deleteMessageWord = "message"
+			var resp string
+			switch numDeleted := len(toDelete); numDeleted {
+			case 0:
+				resp = "Deleted 0 messages! :')"
+			case 1:
+				err = common.BotSession.ChannelMessageDelete(parsed.ChannelID, toDelete[0])
+				resp = "Deleted 1 message! :')"
+			default:
+				err = common.BotSession.ChannelMessagesBulkDelete(parsed.ChannelID, toDelete)
+				resp = fmt.Sprintf("Deleted %d messages! :')", numDeleted)
 			}
-			return dcmd.NewTemporaryResponse(time.Second*5, fmt.Sprintf("Deleted %d %s! :')", numDeleted, deleteMessageWord), true), err
+
+			if err != nil {
+				return "Failed deleting messages", err
+			}
+			return dcmd.NewTemporaryResponse(time.Second*5, resp, true), nil
 		},
 	},
 	{
@@ -780,11 +798,11 @@ var ModerationCommands = []*commands.YAGCommand{
 				return nil, err
 			}
 
-			if config.ActionChannel == "" {
+			if config.ActionChannel == 0 {
 				return "No mod log channel set up", nil
 			}
 
-			msg, err := common.BotSession.ChannelMessage(config.IntActionChannel(), parsed.Args[0].Int64())
+			msg, err := common.BotSession.ChannelMessage(config.ActionChannel, parsed.Args[0].Int64())
 			if err != nil {
 				return nil, err
 			}
@@ -799,7 +817,7 @@ var ModerationCommands = []*commands.YAGCommand{
 
 			embed := msg.Embeds[0]
 			updateEmbedReason(parsed.Author, parsed.Args[1].Str(), embed)
-			_, err = common.BotSession.ChannelMessageEditEmbed(config.IntActionChannel(), msg.ID, embed)
+			_, err = common.BotSession.ChannelMessageEditEmbed(config.ActionChannel, msg.ID, embed)
 			if err != nil {
 				return nil, err
 			}
@@ -822,6 +840,10 @@ var ModerationCommands = []*commands.YAGCommand{
 		DefaultEnabled:           false,
 		IsResponseEphemeral:      true,
 		RunFunc: func(parsed *dcmd.Data) (interface{}, error) {
+			if parsed.Context().Value(commands.CtxKeyExecutedByNestedCommandTemplate) == true {
+				return nil, errors.New("cannot nest exec/execAdmin calls")
+			}
+
 			config, target, err := MBaseCmd(parsed, parsed.Args[0].Int64())
 			if err != nil {
 				return nil, err
@@ -840,7 +862,7 @@ var ModerationCommands = []*commands.YAGCommand{
 			if parsed.TraditionalTriggerData != nil {
 				msg = parsed.TraditionalTriggerData.Message
 			}
-			err = WarnUser(config, parsed.GuildData.GS.ID, parsed.GuildData.CS, msg, parsed.Author, target, parsed.Args[1].Str())
+			err = WarnUser(config, parsed.GuildData.GS.ID, parsed.GuildData.CS, msg, parsed.Author, target, parsed.Args[1].Str(), parsed.Context().Value(commands.CtxKeyExecutedByCommandTemplate) == true)
 			if err != nil {
 				return nil, err
 			}
@@ -878,19 +900,23 @@ var ModerationCommands = []*commands.YAGCommand{
 			}
 
 			if parsed.Switches["id"].Value != nil {
-				var warn []*WarningModel
-				err = common.GORM.Where("guild_id = ? AND id = ?", parsed.GuildData.GS.ID, parsed.Switches["id"].Int()).First(&warn).Error
-				if err != nil && err != gorm.ErrRecordNotFound {
+				id := parsed.Switches["id"].Int()
+				warning, err := models.ModerationWarnings(
+					models.ModerationWarningWhere.ID.EQ(id),
+					// don't display warnings from other servers, even if ID is correct
+					models.ModerationWarningWhere.GuildID.EQ(parsed.GuildData.GS.ID),
+				).OneG(parsed.Context())
+				if err != nil {
+					if err == sql.ErrNoRows {
+						return fmt.Sprintf("Could not find warning with ID `%d`", id), nil
+					}
 					return nil, err
-				}
-				if len(warn) == 0 {
-					return fmt.Sprintf("Warning with given id : `%d` does not exist.", parsed.Switches["id"].Int()), nil
 				}
 
 				return &discordgo.MessageEmbed{
-					Title:       fmt.Sprintf("Warning#%d - User : %s", warn[0].ID, warn[0].UserID),
-					Description: fmt.Sprintf("<t:%d:f> - **Reason** : %s", warn[0].CreatedAt.Unix(), warn[0].Message),
-					Footer:      &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("By: %s (%13s)", warn[0].AuthorUsernameDiscrim, warn[0].AuthorID)},
+					Title:       fmt.Sprintf("Warning#%d - User : %s", warning.ID, warning.UserID),
+					Description: fmt.Sprintf("<t:%d:f> - **Reason** : %s", warning.CreatedAt.Unix(), warning.Message),
+					Footer:      &discordgo.MessageEmbedFooter{Text: fmt.Sprintf("By: %s (%13s)", warning.AuthorUsernameDiscrim, warning.AuthorID)},
 				}, nil
 			}
 			page := parsed.Args[1].Int()
@@ -900,8 +926,8 @@ var ModerationCommands = []*commands.YAGCommand{
 			if parsed.Context().Value(paginatedmessages.CtxKeyNoPagination) != nil {
 				return PaginateWarnings(parsed)(nil, page)
 			}
-			_, err = paginatedmessages.CreatePaginatedMessage(parsed.GuildData.GS.ID, parsed.GuildData.CS.ID, page, 0, PaginateWarnings(parsed))
-			return nil, err
+
+			return paginatedmessages.NewPaginatedResponse(parsed.GuildData.GS.ID, parsed.GuildData.CS.ID, page, 0, PaginateWarnings(parsed)), nil
 		},
 	},
 	{
@@ -928,11 +954,18 @@ var ModerationCommands = []*commands.YAGCommand{
 				return nil, err
 			}
 
-			rows := common.GORM.Model(WarningModel{}).Where("guild_id = ? AND id = ?", parsed.GuildData.GS.ID, parsed.Args[0].Int()).Update(
-				"message", fmt.Sprintf("%s (updated by %s (%d))", parsed.Args[1].Str(), parsed.Author.String(), parsed.Author.ID)).RowsAffected
-
-			if rows < 1 {
-				return "Failed updating, most likely couldn't find the warning", nil
+			warningID := parsed.Args[0].Int()
+			updatedMessage := fmt.Sprintf("%s (updated by %s (%d))", parsed.Args[1].Str(), parsed.Author.String(), parsed.Author.ID)
+			numUpdated, err := models.ModerationWarnings(
+				models.ModerationWarningWhere.ID.EQ(warningID),
+				// don't edit warnings from other servers, even if ID is correct
+				models.ModerationWarningWhere.GuildID.EQ(parsed.GuildData.GS.ID),
+			).UpdateAllG(parsed.Context(), models.M{"message": updatedMessage})
+			if err != nil {
+				return "Failed editing warning", err
+			}
+			if numUpdated == 0 {
+				return fmt.Sprintf("Could not find warning with ID `%d`", warningID), nil
 			}
 
 			return "👌", nil
@@ -963,9 +996,17 @@ var ModerationCommands = []*commands.YAGCommand{
 				return nil, err
 			}
 
-			rows := common.GORM.Where("guild_id = ? AND id = ?", parsed.GuildData.GS.ID, parsed.Args[0].Int()).Delete(WarningModel{}).RowsAffected
-			if rows < 1 {
-				return "Failed deleting, most likely couldn't find the warning", nil
+			warningID := parsed.Args[0].Int()
+			numDeleted, err := models.ModerationWarnings(
+				models.ModerationWarningWhere.ID.EQ(warningID),
+				// don't delete warnings from other servers, even if ID is correct
+				models.ModerationWarningWhere.GuildID.EQ(parsed.GuildData.GS.ID),
+			).DeleteAllG(parsed.Context())
+			if err != nil {
+				return "Failed deleting warning", err
+			}
+			if numDeleted == 0 {
+				return fmt.Sprintf("Could not find warning with ID `%d`", warningID), nil
 			}
 
 			return "👌", nil
@@ -997,15 +1038,21 @@ var ModerationCommands = []*commands.YAGCommand{
 				return nil, err
 			}
 
-			rows := common.GORM.Where("guild_id = ? AND user_id = ?", parsed.GuildData.GS.ID, target.ID).Delete(WarningModel{}).RowsAffected
+			numDeleted, err := models.ModerationWarnings(
+				models.ModerationWarningWhere.GuildID.EQ(parsed.GuildData.GS.ID),
+				models.ModerationWarningWhere.UserID.EQ(discordgo.StrID(target.ID)),
+			).DeleteAllG(parsed.Context())
+			if err != nil {
+				return "Failed deleting warnings", err
+			}
 
 			reason := parsed.Args[1].Str()
 			err = CreateModlogEmbed(config, parsed.Author, MAClearWarnings, target, reason, "")
 			if err != nil {
-				return "failed sending modlog", err
+				return "Failed sending modlog", err
 			}
 
-			return fmt.Sprintf("Deleted %d warnings.", rows), nil
+			return fmt.Sprintf("Deleted %d warnings.", numDeleted), nil
 		},
 	},
 	{
@@ -1065,8 +1112,11 @@ var ModerationCommands = []*commands.YAGCommand{
 					out += fmt.Sprintf("#%02d: %4d - %d\n", v.Rank, v.WarnCount, v.UserID)
 				}
 			}
-			var count int
-			common.GORM.Table("moderation_warnings").Where("guild_id = ?", parsed.GuildData.GS.ID).Count(&count)
+
+			count, err := models.ModerationWarnings(models.ModerationWarningWhere.GuildID.EQ(parsed.GuildData.GS.ID)).CountG(context.Background())
+			if err != nil {
+				return nil, err
+			}
 
 			out += "```\n" + fmt.Sprintf("Total Server Warnings: `%d`", count)
 
@@ -1143,7 +1193,7 @@ var ModerationCommands = []*commands.YAGCommand{
 
 			action := MAGiveRole
 			action.Prefix = "Gave the role " + role.Name + " to "
-			if config.GiveRoleCmdModlog && config.IntActionChannel() != 0 {
+			if config.GiveRoleCmdModlog && config.ActionChannel != 0 {
 				if dur > 0 {
 					action.Footer = "Duration: " + common.HumanizeDuration(common.DurationPrecisionMinutes, dur)
 				}
@@ -1204,7 +1254,7 @@ var ModerationCommands = []*commands.YAGCommand{
 
 			action := MARemoveRole
 			action.Prefix = "Removed the role " + role.Name + " from "
-			if config.GiveRoleCmdModlog && config.IntActionChannel() != 0 {
+			if config.GiveRoleCmdModlog && config.ActionChannel != 0 {
 				CreateModlogEmbed(config, parsed.Author, action, target, "", "")
 			}
 
@@ -1213,111 +1263,113 @@ var ModerationCommands = []*commands.YAGCommand{
 	},
 }
 
-func AdvancedDeleteMessages(guildID, channelID int64, triggerID int64, filterUser int64, regex string, invertRegexMatch bool, toID int64, fromID int64, maxAge time.Duration, minAge time.Duration, pinFilterEnable bool, attachmentFilterEnable bool, deleteNum, fetchNum int) (int, error) {
-	var compiledRegex *regexp.Regexp
-	if regex != "" {
-		// Start by compiling the regex
-		var err error
-		compiledRegex, err = regexp.Compile(regex)
-		if err != nil {
-			return 0, err
+type MessageFilter interface {
+	Matches(msg *dstate.MessageState) (delete bool)
+}
+
+// All the child filters need to match for the message to be deleted.
+type CombinedANDFilter struct{ Filters []MessageFilter }
+
+func (f *CombinedANDFilter) Matches(msg *dstate.MessageState) (delete bool) {
+	for _, filter := range f.Filters {
+		if !filter.Matches(msg) {
+			return false
 		}
 	}
+	return true
+}
 
-	var pinnedMessages map[int64]struct{}
-	if pinFilterEnable {
-		//Fetch pinned messages from channel and make a map with ids as keys which will make it easy to verify if a message with a given ID is pinned message
-		messageSlice, err := common.BotSession.ChannelMessagesPinned(channelID)
-		if err != nil {
-			return 0, err
-		}
-		pinnedMessages = make(map[int64]struct{}, len(messageSlice))
-		for _, msg := range messageSlice {
-			pinnedMessages[msg.ID] = struct{}{} //empty struct works because we are not really interested in value
-		}
+// Only delete messages from the specified user.
+type MessageAuthorFilter struct{ UserID int64 }
+
+func (f *MessageAuthorFilter) Matches(msg *dstate.MessageState) (delete bool) {
+	return msg.Author.ID == f.UserID
+}
+
+// Only delete messages matching the regex (or, if InvertMatch==true, only
+// delete messages not matching the regex.)
+type RegExpFilter struct {
+	InvertMatch bool
+	Re          *regexp.Regexp
+}
+
+func (f *RegExpFilter) Matches(msg *dstate.MessageState) (delete bool) {
+	delete = f.Re.MatchString(msg.Content)
+	if f.InvertMatch {
+		delete = !delete
 	}
+	return
+}
 
-	msgs, err := bot.GetMessages(guildID, channelID, fetchNum, false)
-	if err != nil {
-		return 0, err
+// Only delete messages satisfying MinAge<=age<=MaxAge.
+type MessageAgeFilter struct {
+	ReferenceTime time.Time // Calculate the age of messages relative to this time.
+
+	// 0 means no min age requirement (and likewise for max age.)
+	MinAge time.Duration
+	MaxAge time.Duration
+}
+
+func (f *MessageAgeFilter) Matches(msg *dstate.MessageState) (delete bool) {
+	age := f.ReferenceTime.Sub(msg.ParsedCreatedAt)
+	if f.MinAge != 0 && age < f.MinAge {
+		return false
 	}
-
-	toDelete := make([]int64, 0)
-	now := time.Now()
-	for i := 0; i < len(msgs); i++ {
-		if msgs[i].ID == triggerID {
-			continue
-		}
-
-		if filterUser != 0 && msgs[i].Author.ID != filterUser {
-			continue
-		}
-
-		// Can only bulk delete messages up to 2 weeks (but add 1 minute buffer account for time sync issues and other smallies)
-		if now.Sub(msgs[i].ParsedCreatedAt) > (time.Hour*24*14)-time.Minute {
-			continue
-		}
-
-		// Check regex
-		if compiledRegex != nil {
-			ok := compiledRegex.MatchString(msgs[i].Content)
-			if invertRegexMatch {
-				ok = !ok
-			}
-			if !ok {
-				continue
-			}
-		}
-
-		// Check max age
-		if maxAge != 0 && now.Sub(msgs[i].ParsedCreatedAt) > maxAge {
-			continue
-		}
-
-		// Check min age
-		if minAge != 0 && now.Sub(msgs[i].ParsedCreatedAt) < minAge {
-			continue
-		}
-
-		// Check if pinned message to ignore
-		if pinFilterEnable {
-			if _, found := pinnedMessages[msgs[i].ID]; found {
-				continue
-			}
-		}
-
-		// Continue only if current msg ID is > fromID
-		if fromID > 0 && fromID < msgs[i].ID {
-			continue
-		}
-
-		// Continue only if current msg ID is < toID
-		if toID > 0 && toID > msgs[i].ID {
-			continue
-		}
-
-		// Check whether to ignore messages without attachments
-		if attachmentFilterEnable && len(msgs[i].Attachments) == 0 {
-			continue
-		}
-
-		toDelete = append(toDelete, msgs[i].ID)
-
-		//log.Println("Deleting", msgs[i].ContentWithMentionsReplaced())
-		if len(toDelete) >= deleteNum || len(toDelete) >= 100 {
-			break
-		}
+	if f.MaxAge != 0 && age > f.MaxAge {
+		return false
 	}
+	return true
+}
 
-	if len(toDelete) < 1 {
-		return 0, nil
-	} else if len(toDelete) == 1 {
-		err = common.BotSession.ChannelMessageDelete(channelID, toDelete[0])
-	} else {
-		err = common.BotSession.ChannelMessagesBulkDelete(channelID, toDelete)
+// Do not delete pinned messages.
+type IgnorePinnedMessagesFilter struct {
+	PinnedMsgIDs map[int64]struct{}
+}
+
+func NewIgnorePinnedMessagesFilter(pinned []*discordgo.Message) *IgnorePinnedMessagesFilter {
+	ids := make(map[int64]struct{})
+	for _, msg := range pinned {
+		ids[msg.ID] = struct{}{}
 	}
+	return &IgnorePinnedMessagesFilter{ids}
+}
 
-	return len(toDelete), err
+func (f *IgnorePinnedMessagesFilter) Matches(msg *dstate.MessageState) (delete bool) {
+	if _, pinned := f.PinnedMsgIDs[msg.ID]; pinned {
+		return false
+	}
+	return true
+}
+
+// Only delete messages with attachments.
+type MessagesWithAttachmentsFilter struct{}
+
+func (*MessagesWithAttachmentsFilter) Matches(msg *dstate.MessageState) (delete bool) {
+	return len(msg.Attachments) > 0
+}
+
+// Only delete messages satisfying ToID<=id<=FromID.
+type MessageIDFilter struct {
+	// 0 means no start ID set (and likewise for end ID.)
+	FromID int64
+	ToID   int64
+}
+
+func (f *MessageIDFilter) Matches(msg *dstate.MessageState) (delete bool) {
+	// Don't delete if id < ToID or id > FromID.
+	//
+	//  increasing id ------------->
+	//         ToID ... FromID
+	//     ^                    ^
+	//     |                    |
+	//  id < ToID            id > FromID
+	if f.ToID != 0 && msg.ID < f.ToID {
+		return false
+	}
+	if f.FromID != 0 && msg.ID > f.FromID {
+		return false
+	}
+	return true
 }
 
 func FindRole(gs *dstate.GuildSet, roleS string) *discordgo.Role {
@@ -1345,7 +1397,6 @@ func FindRole(gs *dstate.GuildSet, roleS string) *discordgo.Role {
 }
 
 func PaginateWarnings(parsed *dcmd.Data) func(p *paginatedmessages.PaginatedMessage, page int) (*discordgo.MessageEmbed, error) {
-
 	return func(p *paginatedmessages.PaginatedMessage, page int) (*discordgo.MessageEmbed, error) {
 
 		var err error
@@ -1353,14 +1404,24 @@ func PaginateWarnings(parsed *dcmd.Data) func(p *paginatedmessages.PaginatedMess
 		userID := parsed.Args[0].Int64()
 		limit := 6
 
-		var result []*WarningModel
-		var count int
-		err = common.GORM.Table("moderation_warnings").Where("user_id = ? AND guild_id = ?", userID, parsed.GuildData.GS.ID).Count(&count).Error
-		if err != nil && err != gorm.ErrRecordNotFound {
+		userIDStr := discordgo.StrID(userID)
+		count, err := models.ModerationWarnings(
+			models.ModerationWarningWhere.UserID.EQ(userIDStr),
+			models.ModerationWarningWhere.GuildID.EQ(parsed.GuildData.GS.ID),
+		).CountG(parsed.Context())
+		if err != nil {
 			return nil, err
 		}
-		err = common.GORM.Where("user_id = ? AND guild_id = ?", userID, parsed.GuildData.GS.ID).Order("id desc").Offset(skip).Limit(limit).Find(&result).Error
-		if err != nil && err != gorm.ErrRecordNotFound {
+
+		result, err := models.ModerationWarnings(
+			models.ModerationWarningWhere.UserID.EQ(userIDStr),
+			models.ModerationWarningWhere.GuildID.EQ(parsed.GuildData.GS.ID),
+
+			qm.OrderBy("id desc"),
+			qm.Offset(skip),
+			qm.Limit(limit),
+		).AllG(parsed.Context())
+		if err != nil {
 			return nil, err
 		}
 
@@ -1385,8 +1446,8 @@ func PaginateWarnings(parsed *dcmd.Data) func(p *paginatedmessages.PaginatedMess
 				}
 				entry_formatted += "\n"
 				purgedWarnLogs := logs.ConfEnableMessageLogPurge.GetBool() && entry.CreatedAt.Before(time.Now().AddDate(0, 0, -30))
-				if entry.LogsLink != "" && !purgedWarnLogs {
-					entry_formatted += fmt.Sprintf("> logs: [`link`](%s)\n", entry.LogsLink)
+				if entry.LogsLink.String != "" && !purgedWarnLogs {
+					entry_formatted += fmt.Sprintf("> logs: [`link`](%s)\n", entry.LogsLink.String)
 				}
 				if len([]rune(currentField.Value+entry_formatted)) > 1023 {
 					currentField = &discordgo.MessageEmbedField{
