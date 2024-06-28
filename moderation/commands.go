@@ -1397,7 +1397,7 @@ func PaginateWarnings(parsed *dcmd.Data) func(p *paginatedmessages.PaginatedMess
 			qm.OrderBy("id desc"),
 			qm.Offset(skip),
 			qm.Limit(limit),
-		).AllG(context.Backgroun())
+		).AllG(context.Background())
 		if err != nil {
 			return nil, err
 		}
