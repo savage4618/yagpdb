@@ -111,9 +111,9 @@ var (
 		"roleAbove":   roleIsAbove,
 		"seq":         sequence,
 
-		"shuffle": shuffle,
-		"verb":    common.RandomVerb,
-		"hash":    tmplSha256,
+		"shuffle":      shuffle,
+		"verb":         common.RandomVerb,
+		"hash":         tmplSha256,
 		"decodeBase64": tmplDecodeBase64,
 		"encodeBase64": tmplEncodeBase64,
 
@@ -160,10 +160,12 @@ var GuildPremiumFunc func(guildID int64) (bool, error)
 type ExecutedFromType int
 
 const (
-	ExecutedFromStandard ExecutedFromType = 0
-	ExecutedFromJoin     ExecutedFromType = 1
-	ExecutedFromLeave    ExecutedFromType = 2
-	ExecutedFromEvalCC   ExecutedFromType = 3
+	ExecutedFromStandard              ExecutedFromType = 0
+	ExecutedFromJoin                  ExecutedFromType = 1
+	ExecutedFromLeave                 ExecutedFromType = 2
+	ExecutedFromEvalCC                ExecutedFromType = 3
+	ExecutedFromCommandTemplate       ExecutedFromType = 4
+	ExecutedFromNestedCommandTemplate ExecutedFromType = 5
 )
 
 type Context struct {
@@ -709,6 +711,7 @@ func baseContextFuncs(c *Context) {
 	c.addContextFunc("addResponseReactions", c.tmplAddResponseReactions)
 	c.addContextFunc("addMessageReactions", c.tmplAddMessageReactions)
 	c.addContextFunc("getMember", c.tmplGetMember)
+	c.addContextFunc("getMemberVoiceState", c.tmplGetMemberVoiceState)
 	c.addContextFunc("getMessage", c.tmplGetMessage)
 	c.addContextFunc("getPinCount", c.tmplGetChannelPins(true))
 	c.addContextFunc("getRole", c.tmplGetRole)
@@ -864,6 +867,9 @@ func detectCyclicValue(v interface{}) error {
 type Dict map[interface{}]interface{}
 
 func (d Dict) Set(key interface{}, value interface{}) (string, error) {
+	if key == nil {
+		return "", errors.New("key cannot be nil")
+	}
 	d[key] = value
 	if isContainer(value) {
 		if err := detectCyclicValue(d); err != nil {
@@ -898,7 +904,11 @@ func (d Dict) HasKey(k interface{}) (ok bool) {
 
 func (d Dict) MarshalJSON() ([]byte, error) {
 	md := make(map[string]interface{})
+
 	for k, v := range d {
+		if k == nil {
+			return nil, errors.New("key is nil, cannot parse to json")
+		}
 		krv := reflect.ValueOf(k)
 		switch krv.Kind() {
 		case reflect.String:
