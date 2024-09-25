@@ -1,4 +1,6 @@
-#volumes:
+version: '3'
+
+volumes:
   db:
   redis:
   cert_cache:
