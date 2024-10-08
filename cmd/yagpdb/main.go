@@ -29,6 +29,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/moderation"
 	"github.com/botlabs-gg/yagpdb/v2/notifications"
 	"github.com/botlabs-gg/yagpdb/v2/premium"
+	"github.com/botlabs-gg/yagpdb/v2/premium/discordpremiumsource"
 	"github.com/botlabs-gg/yagpdb/v2/premium/patreonpremiumsource"
 	"github.com/botlabs-gg/yagpdb/v2/reddit"
 	"github.com/botlabs-gg/yagpdb/v2/reminders"
@@ -82,6 +83,7 @@ func main() {
 	verification.RegisterPlugin()
 	premium.RegisterPlugin()
 	patreonpremiumsource.RegisterPlugin()
+	discordpremiumsource.RegisterPlugin()
 	scheduledevents2.RegisterPlugin()
 	rsvp.RegisterPlugin()
 	timezonecompanion.RegisterPlugin()

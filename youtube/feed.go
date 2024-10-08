@@ -40,7 +40,6 @@ func (p *Plugin) StartFeed() {
 }
 
 func (p *Plugin) StopFeed(wg *sync.WaitGroup) {
-
 	if p.Stop != nil {
 		p.Stop <- wg
 	} else {
@@ -62,6 +61,9 @@ func (p *Plugin) deleteOldVideos() {
 	// Remove videos older than 24 hours
 	for {
 		select {
+		case wg := <-p.Stop:
+			wg.Done()
+			return
 		case <-ticker.C:
 			var expiring int64
 			videoCacheDays := confYoutubeVideoCacheDays.GetInt()
@@ -76,18 +78,23 @@ func (p *Plugin) deleteOldVideos() {
 
 func (p *Plugin) autoSyncWebsubs() {
 	// force syncs all websubs from db every 24 hours in case of outages or missed updates
-	ticker := time.NewTicker(time.Hour * 24)
+	ticker := time.NewTicker(time.Hour * 1)
 	for {
 		select {
+		case wg := <-p.Stop:
+			wg.Done()
+			return
 		case <-ticker.C:
-			go p.syncWebSubs()
+			p.syncWebSubs()
 		}
 	}
 }
 
 // keeps the subscriptions up to date by updating the ones soon to be expiring
 func (p *Plugin) runWebsubChecker() {
-	go p.syncWebSubs()
+	// If youtube feed is restarting and the previous run was stopped, we need to unlock the lock
+	common.UnlockRedisKey(RedisChannelsLockKey)
+	p.syncWebSubs()
 	ticker := time.NewTicker(WebSubCheckInterval)
 	for {
 		select {
@@ -95,7 +102,7 @@ func (p *Plugin) runWebsubChecker() {
 			wg.Done()
 			return
 		case <-ticker.C:
-			go p.checkExpiringWebsubs()
+			p.checkExpiringWebsubs()
 		}
 	}
 }
@@ -171,13 +178,19 @@ func (p *Plugin) syncWebSubs() {
 		}
 		for index, chunk := range channelChunks {
 			logger.Infof("Processing chunk %d of %d for %d youtube channels", index+1, len(channelChunks), totalChannels)
+			var didChunkUpdate bool
 			for _, channel := range chunk {
-				mn := radix.MaybeNil{}
+				var mn int64
 				client.Do(radix.Cmd(&mn, "ZSCORE", RedisKeyWebSubChannels, channel))
-				if mn.Nil {
+				if mn < time.Now().Unix() {
+					didChunkUpdate = true
 					// Channel not added to redis, resubscribe and add to redis
 					go p.WebSubSubscribe(channel)
 				}
+			}
+			if didChunkUpdate {
+				// sleep for a second before processing next chunk if the chunk had any updates, otherwise the complete sync takes forever
+				time.Sleep(time.Second)
 			}
 		}
 		if locked {
@@ -301,12 +314,6 @@ func (p *Plugin) sendNewVidMessage(sub *models.YoutubeChannelSubscription, video
 var (
 	ErrIDNotFound = errors.New("ID not found")
 )
-
-func SubsForChannel(channel string) (models.YoutubeChannelSubscriptionSlice, error) {
-	return models.YoutubeChannelSubscriptions(
-		models.YoutubeChannelSubscriptionWhere.YoutubeChannelID.EQ(channel),
-	).AllG(context.Background())
-}
 
 var (
 	ErrNoChannel              = errors.New("no channel with that id found")
