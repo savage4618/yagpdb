@@ -22,7 +22,7 @@ var cmdHelp = &YAGCommand{
 	},
 
 	RunFunc:  cmdFuncHelp,
-	Cooldown: 10,
+	Cooldown: 3,
 }
 
 func CmdNotFound(search string) string {
