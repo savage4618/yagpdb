@@ -19,6 +19,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/premium"
 	"github.com/botlabs-gg/yagpdb/v2/web"
 	"github.com/karlseguin/ccache"
+	"github.com/robfig/cron/v3"
 	"github.com/volatiletech/null/v8"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
@@ -74,6 +75,7 @@ const (
 	CommandTriggerReaction   CommandTriggerType = 6
 	CommandTriggerComponent  CommandTriggerType = 7
 	CommandTriggerModal      CommandTriggerType = 8
+	CommandTriggerCron       CommandTriggerType = 9
 )
 
 var (
@@ -88,6 +90,7 @@ var (
 		CommandTriggerNone,
 		CommandTriggerComponent,
 		CommandTriggerModal,
+		CommandTriggerCron,
 	}
 
 	triggerStrings = map[CommandTriggerType]string{
@@ -101,6 +104,7 @@ var (
 		CommandTriggerNone:       "None",
 		CommandTriggerComponent:  "Component",
 		CommandTriggerModal:      "Modal",
+		CommandTriggerCron:       "Crontab",
 	}
 )
 
@@ -126,8 +130,8 @@ type CustomCommand struct {
 	Public          bool               `json:"public" schema:"public"`
 	PublicID        string             `json:"public_id" schema:"public_id"`
 
-	ContextChannel         int64 `schema:"context_channel" valid:"channel,true"`
-	RedirectErrorsChannel  int64 `schema:"redirect_errors_channel" valid:"channel,true"`
+	ContextChannel        int64 `schema:"context_channel" valid:"channel,true"`
+	RedirectErrorsChannel int64 `schema:"redirect_errors_channel" valid:"channel,true"`
 
 	TimeTriggerInterval       int     `schema:"time_trigger_interval"`
 	TimeTriggerExcludingDays  []int64 `schema:"time_trigger_excluding_days"`
@@ -200,6 +204,13 @@ func (cc *CustomCommand) Validate(tmpl web.TemplateData, guild_id int64) (ok boo
 	if cc.TriggerTypeForm == "interval_hours" && (cc.TimeTriggerInterval < MinIntervalTriggerDurationHours || cc.TimeTriggerInterval > MaxIntervalTriggerDurationHours) {
 		tmpl.AddAlerts(web.ErrorAlert(fmt.Sprintf("Hourly interval can be between %v and %v", MinIntervalTriggerDurationHours, MaxIntervalTriggerDurationHours)))
 		return false
+	}
+
+	if cc.TriggerTypeForm == "cron" {
+		if _, err := cron.NewParser(cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow).Parse(cc.Trigger); err != nil {
+			tmpl.AddAlerts(web.ErrorAlert("Error parsing cron spec: ", err.Error()))
+			return false
+		}
 	}
 
 	return true
@@ -405,7 +416,7 @@ func getDatabaseEntries(ctx context.Context, guildID int64, page int, queryType,
 			qms = append(qms, qm.Where("key ILIKE ?", query))
 		}
 	}
-
+	qms = append(qms, qm.Where("(expires_at IS NULL or expires_at > now())"))
 	count, err := models.TemplatesUserDatabases(qms...).CountG(ctx)
 	if int64(page) > (count / 100) {
 		page = int(math.Ceil(float64(count) / 100))
@@ -430,7 +441,7 @@ func convertEntries(result models.TemplatesUserDatabaseSlice) []*LightDBEntry {
 		b, err := json.Marshal(converted.Value)
 		if err != nil {
 			logger.WithError(err).Warn("[cc/web] failed converting to light db entry")
-			continue
+			b = []byte("Failed to convert db entry to a readable format")
 		}
 
 		converted.Value = common.CutStringShort(string(b), dbPageMaxDisplayLength)

@@ -652,7 +652,7 @@ func shouldIgnoreChannel(msg *discordgo.Message, gs *dstate.GuildSet, cState *ds
 		return true
 	}
 
-	if !bot.IsNormalUserMessage(msg) {
+	if !bot.IsUserMessage(msg) {
 		return true
 	}
 
@@ -992,17 +992,12 @@ func findMessageTriggerCustomCommands(ctx context.Context, cs *dstate.ChannelSta
 		if cmd.Disabled || !CmdRunsInChannel(cmd, common.ChannelOrThreadParentID(cs)) || !CmdRunsForUser(cmd, ms) || cmd.R.Group != nil && cmd.R.Group.Disabled {
 			continue
 		}
+		content := msg.Content
 		if cmd.TriggerType == int(CommandTriggerContains) || cmd.TriggerType == int(CommandTriggerRegex) {
-			for _, content := range msg.GetMessageContents() {
-				if didMatch, stripped, args := CheckMatch(prefix, cmd, content); didMatch {
-					matched = append(matched, &TriggeredCC{
-						CC:       cmd,
-						Args:     args,
-						Stripped: stripped,
-					})
-				}
-			}
-		} else if didMatch, stripped, args := CheckMatch(prefix, cmd, msg.Content); didMatch {
+			//for contains and regex match, we need to look at the content of the forwarded message too.
+			content = strings.Join(msg.GetMessageContents(), " ")
+		}
+		if didMatch, stripped, args := CheckMatch(prefix, cmd, content); didMatch {
 			matched = append(matched, &TriggeredCC{
 				CC:       cmd,
 				Args:     args,
@@ -1660,7 +1655,7 @@ func BotCachedGetCommandsWithMessageTriggers(guildID int64, ctx context.Context)
 		var err error
 
 		common.LogLongCallTime(time.Second, true, "Took longer than a second to fetch custom commands from db", logrus.Fields{"guild": guildID}, func() {
-			cmds, err = models.CustomCommands(qm.Where("guild_id = ? AND trigger_type IN (0,1,2,3,4,6,7,8)", guildID), qm.OrderBy("local_id desc"), qm.Load("Group")).AllG(ctx)
+			cmds, err = models.CustomCommands(qm.Where("guild_id = ? AND trigger_type IN (0,1,2,3,4,6,7,8,9)", guildID), qm.OrderBy("local_id desc"), qm.Load("Group")).AllG(ctx)
 		})
 
 		return cmds, err
