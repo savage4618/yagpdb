@@ -8,4 +8,4 @@ host="localhost"
 user="yagpdb"
 pass="ihateducks"
 sslmode="disable"
-whitelist=["soundboard_sounds"]
+whitelist=["twitter_feeds"]

@@ -1,6 +1,7 @@
 version: '3'
 
 volumes:
+volumes:
   db:
   redis:
   cert_cache:
