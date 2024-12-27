@@ -168,7 +168,7 @@ var cmdEvalCommand = &commands.YAGCommand{
 		code := common.ParseCodeblock(data.TraditionalTriggerData.MessageStrippedPrefix)
 
 		// Encourage only small code snippets being tested with this command
-		maxRunes := 1000
+		maxRunes := 2000
 		if utf8.RuneCountInString(code) > maxRunes {
 			return "Code is too long for in-place evaluation. Please use the control panel.", nil
 		}
