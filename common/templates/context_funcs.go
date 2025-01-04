@@ -2,6 +2,8 @@ package templates
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"math"
@@ -1037,17 +1039,13 @@ func (c *Context) tmplThreadMemberAdd(threadID, memberID interface{}) string {
 
 func (c *Context) tmplCloseThread(channel interface{}, flags ...bool) (string, error) {
 
-	if c.IncreaseCheckCallCounter("edit_channel", 10) {
+	if c.IncreaseCheckCallCounter("edit_thread", 10) {
 		return "", ErrTooManyCalls
 	}
 
 	cID := c.ChannelArg(channel)
 	if cID == 0 {
 		return "", nil //dont send an error, a nil output would indicate invalid/unknown channel
-	}
-
-	if c.IncreaseCheckCallCounter("edit_channel_"+strconv.FormatInt(cID, 10), 2) {
-		return "", ErrTooManyCalls
 	}
 
 	cstate := c.GS.GetChannelOrThread(cID)
@@ -1215,7 +1213,7 @@ func (c *Context) tmplDeleteThread(thread interface{}) (string, error) {
 
 func (c *Context) tmplEditThread(channel interface{}, args ...interface{}) (string, error) {
 
-	if c.IncreaseCheckCallCounter("edit_channel", 10) {
+	if c.IncreaseCheckCallCounter("edit_thread", 10) {
 		return "", ErrTooManyCalls
 	}
 
@@ -1224,7 +1222,7 @@ func (c *Context) tmplEditThread(channel interface{}, args ...interface{}) (stri
 		return "", nil //dont send an error, a nil output would indicate invalid/unknown channel
 	}
 
-	if c.IncreaseCheckCallCounter("edit_channel_"+strconv.FormatInt(cID, 10), 2) {
+	if c.IncreaseCheckCallCounter("edit_thread_"+strconv.FormatInt(cID, 10), 2) {
 		return "", ErrTooManyCalls
 	}
 
@@ -1274,11 +1272,7 @@ func (c *Context) tmplEditThread(channel interface{}, args ...interface{}) (stri
 
 func (c *Context) tmplOpenThread(cID int64) (string, error) {
 
-	if c.IncreaseCheckCallCounter("edit_channel", 10) {
-		return "", ErrTooManyCalls
-	}
-
-	if c.IncreaseCheckCallCounter("edit_channel_"+strconv.FormatInt(cID, 10), 2) {
+	if c.IncreaseCheckCallCounter("edit_thread", 10) {
 		return "", ErrTooManyCalls
 	}
 
@@ -1524,17 +1518,13 @@ func processThreadArgs(newThread bool, parent *dstate.ChannelState, values ...in
 func (c *Context) tmplPinForumPost(unpin bool) func(channel interface{}) (string, error) {
 	return func(channel interface{}) (string, error) {
 
-		if c.IncreaseCheckCallCounter("edit_channel", 10) {
+		if c.IncreaseCheckCallCounter("edit_thread", 10) {
 			return "", ErrTooManyCalls
 		}
 
 		cID := c.ChannelArg(channel)
 		if cID == 0 {
 			return "", nil //dont send an error, a nil output would indicate invalid/unknown channel
-		}
-
-		if c.IncreaseCheckCallCounter("edit_channel_"+strconv.FormatInt(cID, 10), 2) {
-			return "", ErrTooManyCalls
 		}
 
 		cstate := c.GS.GetChannelOrThread(cID)
@@ -1807,8 +1797,14 @@ func (c *Context) reReplace(r, s, repl string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-
-	return compiled.ReplaceAllString(s, repl), nil
+	if len(s)*len(repl) > MaxStringLength {
+		return "", ErrStringTooLong
+	}
+	ret := compiled.ReplaceAllString(s, repl)
+	if len(ret) > MaxStringLength {
+		return "", ErrStringTooLong
+	}
+	return ret, nil
 }
 
 func (c *Context) reSplit(r, s string, i ...int) ([]string, error) {
@@ -2518,4 +2514,45 @@ func (c *Context) validateDurationDelay(in interface{}) time.Duration {
 	default:
 		return ToDuration(t)
 	}
+}
+
+func (c *Context) tmplDecodeBase64(str string) (string, error) {
+	if c.IncreaseCheckCallCounter("decode_base64", 2) {
+		return "", ErrTooManyCalls
+	}
+	raw, err := base64.StdEncoding.DecodeString(str)
+	if err != nil {
+		return "", err
+	}
+	if len(raw) > MaxStringLength {
+		return "", ErrStringTooLong
+	}
+	return string(raw), nil
+}
+
+func (c *Context) tmplEncodeBase64(str string) (string, error) {
+	if c.IncreaseCheckCallCounter("encode_base64", 2) {
+		return "", ErrTooManyCalls
+	}
+	encoded := base64.StdEncoding.EncodeToString([]byte(str))
+	if len(encoded) > MaxStringLength {
+		return "", ErrStringTooLong
+	}
+
+	return encoded, nil
+}
+
+func (c *Context) tmplSha256(str string) (string, error) {
+	if c.IncreaseCheckCallCounter("sha256", 2) {
+		return "", ErrTooManyCalls
+	}
+	hash := sha256.New()
+	hash.Write([]byte(str))
+
+	sha256 := base64.URLEncoding.EncodeToString(hash.Sum(nil))
+	if len(sha256) > MaxStringLength {
+		return "", ErrStringTooLong
+	}
+
+	return sha256, nil
 }
