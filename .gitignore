@@ -26,3 +26,4 @@ debug.log
 __debug_bin*
 app.env
 .scannerwork
+google-creds.json

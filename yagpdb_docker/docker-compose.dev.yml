@@ -29,6 +29,7 @@ services:
     volumes:
       - cert_cache:/app/cert
       - soundboard:/app/soundboard
+      - .:/app/source
     ports:
       - '5000:5000'
       - '5001:5001'
@@ -49,6 +50,6 @@ services:
     volumes:
       - db:/var/lib/postgresql/data
     networks:
-      - default
+     - default
     env_file:
       - db.env
