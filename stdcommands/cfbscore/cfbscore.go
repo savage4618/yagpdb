@@ -57,8 +57,12 @@ var Command = &commands.YAGCommand{
 			Thumbnail: &discordgo.MessageEmbedThumbnail{
 				URL: output.Team.Logos[0].Href,
 			},
-			Description: fmt.Sprintf("TV: %s\n %s\n %s %s - %s %s ", broadcast, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail, score.Competitions[0].Competitors[0].Team.Name, score.Competitions[0].Competitors[0].Score, score.Competitions[0].Competitors[1].Team.Name, score.Competitions[0].Competitors[1].Score),
-			Color:       int(color),
+			Description: fmt.Sprintf("TV: %s\n %s\n", broadcast, output.Team.NextEvent[0].Competitions[0].Status.Type.ShortDetail),
+			Fields: []*discordgo.MessageEmbedField{
+				{Name: fmt.Sprintf("%s", score.Competitions[0].Competitors[0].Team.Name), Value: fmt.Sprintf("%s", score.Competitions[0].Competitors[0].Score), Inline: true},
+				{Name: fmt.Sprintf("%s", score.Competitions[0].Competitors[1].Team.Name), Value: fmt.Sprintf("%s", score.Competitions[0].Competitors[1].Score), Inline: true},
+			},
+			Color: int(color),
 		}
 
 		return embed, nil
