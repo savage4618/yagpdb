@@ -3,6 +3,7 @@ package moderation
 import (
 	"database/sql"
 	"math/rand"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -303,6 +304,10 @@ func RefreshMuteOverrideForChannel(config *Config, channel dstate.ChannelState) 
 func HandleGuildAuditLogEntryCreate(evt *eventsystem.EventData) (retry bool, err error) {
 	data := evt.GuildAuditLogEntryCreate()
 
+	if data.UserID == 0 || data.TargetID == 0 {
+		return false, nil
+	}
+
 	config, err := BotCachedGetConfig(data.GuildID)
 	if err != nil {
 		return true, errors.WithStackIf(err)
@@ -317,41 +322,44 @@ func HandleGuildAuditLogEntryCreate(evt *eventsystem.EventData) (retry bool, err
 		return false, nil
 	}
 
-	author, err := bot.GetMember(data.GuildID, data.UserID)
-	if err != nil {
-		return true, errors.WithStackIf(err)
-	}
-
-	target, err := common.BotSession.User(data.TargetID)
-	if err != nil {
-		return true, errors.WithStackIf(err)
-	}
-
+	var action ModlogAction
 	// setup done, now we get to the actions.
 	switch {
 	case config.LogTimeouts && *data.ActionType == discordgo.AuditLogActionMemberUpdate:
-		for _, c := range data.Changes {
-			if *c.Key == discordgo.AuditLogChangeKeyCommunicationDisabledUntil {
-				if c.NewValue == nil {
-					return false, nil
-				} else {
-					break
-				}
-			}
+		isTimeout := slices.ContainsFunc(data.Changes, func(c *discordgo.AuditLogChange) bool {
+			return *c.Key == discordgo.AuditLogChangeKeyCommunicationDisabledUntil && c.NewValue != nil
+		})
+		if !isTimeout {
+			return false, nil
 		}
-		err = CreateModlogEmbed(config, &author.User, MATimeoutAdded, target, data.Reason, "")
+		action = MATimeoutAdded
 	case config.LogKicks && *data.ActionType == discordgo.AuditLogActionMemberKick:
-		err = CreateModlogEmbed(config, &author.User, MAKick, target, data.Reason, "")
+		action = MAKick
 	case config.LogBans && *data.ActionType == discordgo.AuditLogActionMemberBanAdd:
-		err = CreateModlogEmbed(config, &author.User, MABanned, target, data.Reason, "")
+		action = MABanned
 	case config.LogUnbans && *data.ActionType == discordgo.AuditLogActionMemberBanRemove:
-		err = CreateModlogEmbed(config, &author.User, MAUnbanned, target, data.Reason, "")
+		action = MAUnbanned
+	default:
+		return false, nil
 	}
 
+	author, err := bot.GetMember(data.GuildID, data.UserID)
+	if err != nil {
+		return false, errors.WithStackIf(err)
+	}
+	target, err := common.BotSession.User(data.TargetID)
+	if err != nil {
+		// TargetID may not be a user ID, 404s are expected
+		if bot.CheckDiscordErrRetry(err) {
+			return true, errors.WithStackIf(err)
+		}
+		return false, err
+	}
+	err = CreateModlogEmbed(config, &author.User, action, target, data.Reason, "")
 	if err != nil {
 		logger.WithError(err).WithField("guild", data.GuildID).Error("Failed sending mod log entry.")
+		return false, err
 	}
-
 	return false, nil
 }
 
