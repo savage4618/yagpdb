@@ -8,6 +8,7 @@ import (
 
 	"github.com/botlabs-gg/yagpdb/v2/commands"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dcmd"
+	"github.com/sirupsen/logrus"
 )
 
 var Command = &commands.YAGCommand{
@@ -31,7 +32,8 @@ var Command = &commands.YAGCommand{
 
 		resp, err := http.Get(addr)
 		if err != nil {
-			return nil, err
+			logrus.WithError(err).Errorf("Failed getting advice from adviceslip api, using fallback")
+			return randomAdvice(), nil
 		}
 
 		var decoded interface{}
@@ -44,11 +46,11 @@ var Command = &commands.YAGCommand{
 
 		err = json.NewDecoder(resp.Body).Decode(&decoded)
 		if err != nil {
-			return err, err
+			logrus.WithError(err).Errorf("Failed to decode adviceslip api response, using fallback")
+			return randomAdvice(), nil
 		}
 
-		advice := "No advice found :'("
-
+		advice := ""
 		if random {
 			slip := decoded.(*RandomAdviceResp).Slip
 			if slip != nil {
@@ -59,6 +61,9 @@ var Command = &commands.YAGCommand{
 			if len(cast.Slips) > 0 {
 				advice = cast.Slips[rand.Intn(len(cast.Slips))].Advice
 			}
+		}
+		if len(advice) == 0 {
+			advice = randomAdvice()
 		}
 
 		return advice, nil
