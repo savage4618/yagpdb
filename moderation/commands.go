@@ -613,7 +613,14 @@ var ModerationCommands = []*commands.YAGCommand{
 				return "No report channel set up", nil
 			}
 
-			topContent := fmt.Sprintf("%s reported **%s (ID %d)**", parsed.Author.Mention(), target.String(), target.ID)
+			var topContent string
+			if len(config.ReportMentionRoles) > 0 {
+				for _, r := range config.ReportMentionRoles {
+					topContent += fmt.Sprintf("<@&%d>", r)
+				}
+				topContent += ":\n"
+			}
+			topContent += fmt.Sprintf("%s reported **%s (ID %d)**", parsed.Author.Mention(), target.String(), target.ID)
 
 			embed := &discordgo.MessageEmbed{
 				Author: &discordgo.MessageEmbedAuthor{
@@ -631,7 +638,7 @@ var ModerationCommands = []*commands.YAGCommand{
 				Content: topContent,
 				Embeds:  []*discordgo.MessageEmbed{embed},
 				AllowedMentions: discordgo.AllowedMentions{
-					Parse: []discordgo.AllowedMentionType{discordgo.AllowedMentionTypeUsers},
+					Parse: []discordgo.AllowedMentionType{discordgo.AllowedMentionTypeUsers, discordgo.AllowedMentionTypeRoles},
 				},
 			}
 
@@ -793,7 +800,8 @@ var ModerationCommands = []*commands.YAGCommand{
 				err = common.BotSession.ChannelMessageDelete(parsed.ChannelID, toDelete[0])
 				resp = "Deleted 1 message! :')"
 			default:
-				err = common.BotSession.ChannelMessagesBulkDelete(parsed.ChannelID, toDelete)
+				reason := fmt.Sprintf("Deleted by %s", parsed.Author.String())
+				err = common.BotSession.ChannelMessagesBulkDeleteWithReason(parsed.ChannelID, toDelete, reason)
 				resp = fmt.Sprintf("Deleted %d messages! :')", numDeleted)
 			}
 
@@ -1055,7 +1063,7 @@ var ModerationCommands = []*commands.YAGCommand{
 				if config.DelwarnIncludeWarnReason {
 					reason = fmt.Sprintf("%s\n~~%s~~", reason, warning.Message)
 				}
-				
+
 				err = CreateModlogEmbed(config, parsed.Author, MADelwarn, user, reason, "")
 				if err != nil {
 					return "Failed sending modlog, warning deleted", err
@@ -1401,6 +1409,7 @@ type MessagesWithAttachmentsFilter struct{}
 func (*MessagesWithAttachmentsFilter) Matches(msg *dstate.MessageState) (delete bool) {
 	return len(msg.GetMessageAttachments()) > 0
 }
+
 // Only delete bot messages.
 type BotMessagesFilter struct{}
 
