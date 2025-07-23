@@ -5,6 +5,7 @@ var ActivePoller *Poller
 type Patron struct {
 	Name        string
 	Avatar      string
-	AmountCents int
 	DiscordID   int64
+	Tiers       []int64
+	AmountCents int64
 }

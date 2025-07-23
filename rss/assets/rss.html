@@ -1,0 +1,124 @@
+{{define "cp_rss"}}
+{{template "cp_head" .}}
+
+<style>
+  .rss-tbl-actions-column {
+      display: flex;
+      flex-direction: column;
+  }
+  .rss-tbl-actions-column > button { 
+    margin: 5px
+  }
+
+  .card-deck {
+    margin: 0 !important;
+  }
+
+</style>
+
+<header class="page-header">
+    <h2>RSS Feeds</h2>
+</header>
+
+{{template "cp_alerts" .}}
+
+<div class="row">
+    <div class="card-deck col-lg-12">
+        <section class="card">
+            <header class="card-header">
+                <h2 class="card-title">New feed</h2>
+            </header>
+            <div class="card-body">
+                <form class="no-unsaved-popup" method="post" action="/manage/{{.ActiveGuild.ID}}/rss">
+                    <p>RSS feeds are <a href="/premium-perks" target="_blank" class="text-warning">premium only. </a></p>
+                    <div class="form-group">
+                        <label for="rss-feed-url">Feed URL</label>
+                        <input type="url" class="form-control" id="rss-feed-url" name="FeedURL" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="channel">Discord Channel</label>
+                        <select id="channel" class="form-control" name="DiscordChannel" data-requireperms-send>
+                            {{textChannelOptions .ActiveGuild.Channels nil false ""}}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        {{checkbox "MentionEveryone" "new-mention-everyone" `Mention Everyone` false}}
+                    </div>
+                    <div class="form-group">
+                        <label for="mention-roles">Mention Roles</label>
+                        <select id="mention-roles" class="multiselect form-control" multiple="multiple" name="MentionRoles" data-plugin-multiselect>
+                            {{roleOptionsMulti .ActiveGuild.Roles nil .MentionRoles}}
+                        </select>
+                    </div>
+                    <button type="submit" class="btn btn-success">Add</button>
+                </form>
+            </div>
+        </section>
+    </div>
+</div>
+
+<div class="row ">
+    <div class="col card-deck">
+        <section class="card">
+            <header class="card-header">
+                <h2 class="card-title">Current RSS feeds</h2>
+            </header>
+            <div class="card-body">
+                <p>Feeds might get disabled if premium expires or feed url doesn't work, or the bot is unable to send the feed in the channel</p>
+                <table class="table table-responsive-md table-sm mb-0">
+                  <thead>
+                    <tr>
+                      <th>Feed URL</th>
+                      <th>Server Channel</th>
+                      <th>@everyone</th>
+                      <th>Mention Roles</th>
+                      <th>Enabled</th>
+                      <th>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                  {{$dot := .}}
+                  {{range .FeedItems}}
+                  <form id="feed-item-{{.ID}}" class="no-unsaved-popup" data-async-form method="post" action="/manage/{{$dot.ActiveGuild.ID}}/rss/{{.ID}}/update">
+                    <tr>
+                      <td>
+                          <a class="feedlink" href="{{.FeedURL}}" target="_blank">
+                            {{.FeedURL}}</a>
+                      </td>
+                      <td>
+                        <select form="feed-item-{{.ID}}" class="form-control" name="DiscordChannel" >
+                          {{textChannelOptions $dot.ActiveGuild.Channels .ChannelID false ""}}
+                        </select>
+                      </td>
+                      <td>
+                        {{checkbox "MentionEveryone" (print "mention-everyone-" .ID) `Mention everyone` .MentionEveryone (print `form="feed-item-` .ID `"`)}}
+                      </td>
+                      <td>
+                        <select form="feed-item-{{.ID}}" name="MentionRoles" class="multiselect form-control" multiple="multiple"
+                              id="mention-roles" data-plugin-multiselect>
+                              {{roleOptionsMulti $dot.ActiveGuild.Roles nil .MentionRoles }}
+                            </select>
+                      </td>
+                      <td>
+                        {{checkbox "Enabled" (print "feed-enabled-" .ID) `` .Enabled (print `form="feed-item-` .ID `"`)}}
+                      </td>
+                      <td>
+                        <div class="btn-group rss-tbl-actions-column">
+                          <button form="feed-item-{{.ID}}" type="submit" class="btn btn-success" formaction="/manage/{{$dot.ActiveGuild.ID}}/rss/{{.ID}}/update">Save</button>
+                          <button form="feed-item-{{.ID}}" type="submit" class="btn btn-danger" formaction="/manage/{{$dot.ActiveGuild.ID}}/rss/{{.ID}}/delete">Delete</button>
+                        </div>
+                      </td>
+                    </tr>
+                  </form>
+                  {{end}}
+                  </tbody>
+                </table>
+
+            </div>
+        </section>
+    </div>
+</div>
+
+{{template "cp_footer" .}}
+{{end}} 

@@ -4,13 +4,7 @@
 package models
 
 var TableNames = struct {
-	DiscordSkus  string
-	PatreonTiers string
-	PremiumCodes string
-	PremiumSlots string
+	RSSFeedSubscriptions string
 }{
-	DiscordSkus:  "discord_skus",
-	PatreonTiers: "patreon_tiers",
-	PremiumCodes: "premium_codes",
-	PremiumSlots: "premium_slots",
+	RSSFeedSubscriptions: "rss_feed_subscriptions",
 }
