@@ -9,6 +9,7 @@ import (
 	"strconv"
 
 	"github.com/botlabs-gg/yagpdb/v2/common"
+	"github.com/botlabs-gg/yagpdb/v2/common/cplogs"
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
 	"github.com/botlabs-gg/yagpdb/v2/premium"
 	"github.com/botlabs-gg/yagpdb/v2/rss/models"
@@ -24,6 +25,23 @@ import (
 
 //go:embed assets/rss.html
 var PageHTML string
+var (
+	panelLogKeyAddedFeed   = cplogs.RegisterActionFormat(&cplogs.ActionFormat{Key: "rss_added_feed", FormatString: "Added RSS feed: %s"})
+	panelLogKeyUpdatedFeed = cplogs.RegisterActionFormat(&cplogs.ActionFormat{Key: "rss_updated_feed", FormatString: "Updated RSS feed: %s"})
+	panelLogKeyRemovedFeed = cplogs.RegisterActionFormat(&cplogs.ActionFormat{Key: "rss_removed_feed", FormatString: "Removed RSS feed: %s"})
+)
+
+const (
+	GuildMaxRSSFeedsFree    = 2
+	GuildMaxRSSFeedsPremium = 10
+)
+
+func MaxRSSFeedsForContext(ctx context.Context) int {
+	if premium.ContextPremium(ctx) {
+		return GuildMaxRSSFeedsPremium
+	}
+	return GuildMaxRSSFeedsFree
+}
 
 func (p *Plugin) InitWeb() {
 	web.AddHTMLTemplate("rss/assets/rss.html", PageHTML)
@@ -71,7 +89,7 @@ func (p *Plugin) HandleRSS(w http.ResponseWriter, r *http.Request) (web.Template
 		return templateData, err
 	}
 
-	templateData["FeedItems"] = subs // FIX: use FeedItems to match template
+	templateData["FeedItems"] = subs
 	templateData["VisibleURL"] = "/manage/" + discordgo.StrID(activeGuild.ID) + "/rss"
 	return templateData, nil
 }
@@ -81,18 +99,20 @@ func (p *Plugin) HandleNew(w http.ResponseWriter, r *http.Request) (web.Template
 	activeGuild, templateData := web.GetBaseCPContextData(ctx)
 	data := ctx.Value(common.ContextKeyParsedForm).(*RSSFeedForm)
 
-	if !premium.ContextPremium(ctx) {
-		return templateData.AddAlerts(web.ErrorAlert("RSS feeds are a premium-only feature.")), nil
-	}
-
-	count, err := models.RSSFeedSubscriptions(
+	enabledLimit := MaxRSSFeedsForContext(ctx)
+	enabledCount, err := models.RSSFeedSubscriptions(
 		models.RSSFeedSubscriptionWhere.GuildID.EQ(activeGuild.ID),
+		models.RSSFeedSubscriptionWhere.Enabled.EQ(true),
 	).CountG(ctx)
 	if err != nil {
-		return templateData.AddAlerts(web.ErrorAlert("Failed to check current RSS feed count.")), err
+		return templateData.AddAlerts(web.ErrorAlert("Failed to check current enabled RSS feed count.")), err
 	}
-	if count >= 5 {
-		return templateData.AddAlerts(web.ErrorAlert("You can only have up to 5 RSS feeds per server.")), nil
+	if enabledCount >= int64(enabledLimit) {
+		if premium.ContextPremium(ctx) {
+			return templateData.AddAlerts(web.ErrorAlert(fmt.Sprintf("You can only have up to %d enabled RSS feeds per server (premium limit). Disable or delete an existing feed to add a new one.", enabledLimit))), nil
+		} else {
+			return templateData.AddAlerts(web.ErrorAlert(fmt.Sprintf("You can only have up to %d enabled RSS feeds per server (free limit). Upgrade to premium for more, or disable/delete an existing feed.", enabledLimit))), nil
+		}
 	}
 
 	parser := gofeed.NewParser()
@@ -122,6 +142,8 @@ func (p *Plugin) HandleNew(w http.ResponseWriter, r *http.Request) (web.Template
 	if err := sub.InsertG(ctx, boil.Infer()); err != nil {
 		return templateData.AddAlerts(web.ErrorAlert(fmt.Sprintf("Failed to add RSS feed: %v", err))), err
 	}
+
+	go cplogs.RetryAddEntry(web.NewLogEntryFromContext(r.Context(), panelLogKeyAddedFeed, &cplogs.Param{Type: cplogs.ParamTypeString, Value: data.FeedURL}))
 	return templateData, nil
 }
 
@@ -160,8 +182,23 @@ func (p *Plugin) HandleEdit(w http.ResponseWriter, r *http.Request) (web.Templat
 	_, templateData := web.GetBaseCPContextData(ctx)
 	sub := ctx.Value(ContextKeySub).(*models.RSSFeedSubscription)
 	data := ctx.Value(common.ContextKeyParsedForm).(*RSSFeedForm)
-	if !premium.ContextPremium(ctx) && sub.Enabled == false && data.Enabled == true {
-		return templateData.AddAlerts(web.ErrorAlert("You don't have premium to enable RSS Feeds")), nil
+
+	if !sub.Enabled && data.Enabled {
+		enabledLimit := MaxRSSFeedsForContext(ctx)
+		enabledCount, err := models.RSSFeedSubscriptions(
+			models.RSSFeedSubscriptionWhere.GuildID.EQ(sub.GuildID),
+			models.RSSFeedSubscriptionWhere.Enabled.EQ(true),
+		).CountG(ctx)
+		if err != nil {
+			return templateData.AddAlerts(web.ErrorAlert("Failed to check current enabled RSS feed count.")), err
+		}
+		if enabledCount >= int64(enabledLimit) {
+			if premium.ContextPremium(ctx) {
+				return templateData.AddAlerts(web.ErrorAlert(fmt.Sprintf("You can only have up to %d enabled RSS feeds per server (premium limit). Disable or delete an existing feed to enable this one.", enabledLimit))), nil
+			} else {
+				return templateData.AddAlerts(web.ErrorAlert(fmt.Sprintf("You can only have up to %d enabled RSS feeds per server (free limit). Upgrade to premium for more, or disable/delete an existing feed.", enabledLimit))), nil
+			}
+		}
 	}
 
 	sub.ChannelID = data.DiscordChannel
@@ -173,6 +210,8 @@ func (p *Plugin) HandleEdit(w http.ResponseWriter, r *http.Request) (web.Templat
 	if err != nil {
 		return templateData.AddAlerts(web.ErrorAlert("Failed to update RSS feed.")), err
 	}
+
+	go cplogs.RetryAddEntry(web.NewLogEntryFromContext(r.Context(), panelLogKeyUpdatedFeed, &cplogs.Param{Type: cplogs.ParamTypeString, Value: sub.FeedURL}))
 	return templateData, nil
 }
 
@@ -191,6 +230,8 @@ func (p *Plugin) HandleRemove(w http.ResponseWriter, r *http.Request) (web.Templ
 	if err != nil {
 		logrus.WithError(err).WithField("key", key).Warn("Failed to delete RSS deduplication key after feed deletion")
 	}
+
+	go cplogs.RetryAddEntry(web.NewLogEntryFromContext(r.Context(), panelLogKeyRemovedFeed, &cplogs.Param{Type: cplogs.ParamTypeString, Value: sub.FeedURL}))
 	return templateData, nil
 }
 
