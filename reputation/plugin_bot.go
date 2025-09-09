@@ -17,6 +17,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/common"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dcmd"
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
+	"github.com/botlabs-gg/yagpdb/v2/premium"
 	"github.com/botlabs-gg/yagpdb/v2/reputation/models"
 	"github.com/botlabs-gg/yagpdb/v2/web"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -59,7 +60,17 @@ func handleMessageCreate(evt *eventsystem.EventData) {
 		return
 	}
 
-	if !thanksRegex.MatchString(msg.Content) {
+	// Premium guilds can set a custom thanks regex override
+	usedRegex := thanksRegex
+	if conf.ThanksRegex.Valid {
+		if isPrem, _ := premium.IsGuildPremium(msg.GuildID); isPrem {
+			if custom, err := regexp.Compile(conf.ThanksRegex.String); err == nil {
+				usedRegex = custom
+			}
+		}
+	}
+
+	if !usedRegex.MatchString(msg.Content) {
 		return
 	}
 
@@ -77,44 +88,42 @@ func handleMessageCreate(evt *eventsystem.EventData) {
 		return
 	}
 
-	who := msg.Mentions[0]
-	if who.ID == msg.Author.ID {
-		return
-	}
-
-	target, err := bot.GetMember(msg.GuildID, who.ID)
 	sender := dstate.MemberStateFromMember(msg.Member)
-	if err != nil {
-		logger.WithError(err).Error("Failed retrieving target member")
-		return
-	}
-
-	if err = CanModifyRep(conf, sender, target); err != nil {
-		return
-	}
-
-	err = ModifyRep(evt.Context(), conf, evt.GS, sender, target, 1)
-	if err != nil {
-		if err == ErrCooldown {
-			// Ignore this error silently
-			return
+	for _, who := range msg.Mentions {
+		if who.ID == msg.Author.ID {
+			continue
 		}
-		logger.WithError(err).Error("Failed giving rep")
-		return
+
+		target, err := bot.GetMember(msg.GuildID, who.ID)
+		if err != nil {
+			logger.WithError(err).Error("Failed retrieving target member")
+			continue
+		}
+		if err = CanModifyRep(conf, sender, target); err != nil {
+			continue
+		}
+		err = ModifyRep(evt.Context(), conf, evt.GS, sender, target, 1)
+		if err != nil {
+			if err == ErrCooldown {
+				// Ignore this error silently
+				continue
+			}
+			logger.WithError(err).Error("Failed giving rep")
+			continue
+		}
+
+		go analytics.RecordActiveUnit(msg.GuildID, &Plugin{}, "auto_add_rep")
+		newScore, newRank, err := GetUserStats(msg.GuildID, who.ID)
+		if err != nil {
+			newScore = -1
+			newRank = -1
+			logger.WithError(err).Error("Failed retrieving target stats")
+			continue
+		}
+
+		content := fmt.Sprintf("Gave +1 %s to **%s** (current: `#%d` - `%d`)", conf.PointsName, who.Mention(), newRank, newScore)
+		common.BotSession.ChannelMessageSend(msg.ChannelID, content)
 	}
-
-	go analytics.RecordActiveUnit(msg.GuildID, &Plugin{}, "auto_add_rep")
-
-	newScore, newRank, err := GetUserStats(msg.GuildID, who.ID)
-	if err != nil {
-		newScore = -1
-		newRank = -1
-		logger.WithError(err).Error("Failed retrieving target stats")
-		return
-	}
-
-	content := fmt.Sprintf("Gave +1 %s to **%s** (current: `#%d` - `%d`)", conf.PointsName, who.Mention(), newRank, newScore)
-	common.BotSession.ChannelMessageSend(msg.ChannelID, content)
 }
 
 var cmds = []*commands.YAGCommand{
