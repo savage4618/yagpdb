@@ -58,7 +58,6 @@ func (p *Plugin) SetupClient() error {
 
 func (p *Plugin) deleteOldVideos() {
 	ticker := time.NewTicker(time.Minute * 1)
-	// Remove videos older than 24 hours
 	for {
 		select {
 		case wg := <-p.Stop:
@@ -138,7 +137,7 @@ func (p *Plugin) checkExpiringWebsubs() {
 	for index, chunk := range expiringChunks {
 		logger.Infof("Processing chunk %d of %d for %d expiring youtube subs", index+1, len(expiringChunks), totalExpiring)
 		for _, sub := range chunk {
-			go p.WebSubSubscribe(sub)
+			p.WebSubSubscribe(sub)
 		}
 		// sleep for a second before processing next chunk
 		time.Sleep(time.Second)
@@ -185,7 +184,7 @@ func (p *Plugin) syncWebSubs() {
 				if mn < time.Now().Unix() {
 					didChunkUpdate = true
 					// Channel not added to redis, resubscribe and add to redis
-					go p.WebSubSubscribe(channel)
+					p.WebSubSubscribe(channel)
 				}
 			}
 			if didChunkUpdate {
@@ -235,6 +234,7 @@ func (p *Plugin) sendNewVidMessage(sub *models.YoutubeChannelSubscription, video
 		guildState, err := discorddata.GetFullGuild(parsedGuild)
 		if err != nil {
 			logger.WithError(err).Errorf("Failed to get guild state for guild_id %d", parsedGuild)
+			p.DisableGuildFeeds(parsedGuild)
 			return
 		}
 
@@ -685,7 +685,7 @@ func (p *Plugin) postVideo(subs models.YoutubeChannelSubscriptionSlice, publishe
 	}
 
 	contentType := video.Snippet.LiveBroadcastContent
-	logger.Infof("Got a new video for channel %s (%s) with videoid %s (%s), of type %s and publishing to %d subscriptions", channelID, video.Snippet.ChannelTitle, video.Id, video.Snippet.Title, contentType, len(subs))
+	logger.Infof("Got a new video for channel %s with videoid %s, of type %s and publishing to %d subscriptions", channelID, video.Id, contentType, len(subs))
 
 	isLivestream := contentType == "live"
 	isUpcoming := contentType == "upcoming"

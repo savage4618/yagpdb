@@ -9,6 +9,8 @@ import (
 	"emperror.dev/errors"
 	"github.com/botlabs-gg/yagpdb/v2/common"
 	"github.com/botlabs-gg/yagpdb/v2/common/backgroundworkers"
+	"github.com/botlabs-gg/yagpdb/v2/common/featureflags"
+	"github.com/botlabs-gg/yagpdb/v2/common/scheduledevents2"
 	"github.com/botlabs-gg/yagpdb/v2/premium/models"
 	"github.com/mediocregopher/radix/v3"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -17,6 +19,7 @@ import (
 var _ backgroundworkers.BackgroundWorkerPlugin = (*Plugin)(nil)
 
 func (p *Plugin) RunBackgroundWorker() {
+	syncPremiumServersOnStart()
 	go runMonitor()
 }
 
@@ -39,6 +42,7 @@ func runMonitor() {
 		<-ticker.C
 
 		if checkedExpiredSlots {
+			// Then, refresh the redis cache from DB
 			err := updatePremiumServers(context.Background())
 			if err != nil {
 				logger.WithError(err).Error("Failed updating premium servers")
@@ -53,6 +57,61 @@ func runMonitor() {
 		}
 
 	}
+}
+
+// This syncs servers between Redis and the database and removes any guilds present in Redis but not in DB.
+// For each removed guild, it schedules the premium_guild_removed event and updates feature flags.
+func syncPremiumServersOnStart() error {
+	logger.Info("Premium Server Sync: Getting All Guilds Once Premium")
+	allOncePremiumGuildIDs, err := AllGuildsOncePremium()
+	if err != nil {
+		logger.Info("Premium Server Sync: Failed getting all guild once premium")
+		return errors.WithMessage(err, "AllGuildsOncePremium")
+	}
+
+	// Build a set of DB guilds
+	slots, err := models.PremiumSlots(qm.Where("guild_id IS NOT NULL")).AllG(context.Background())
+	if err != nil {
+		logger.WithError(err).Error("Premium Server Sync: Failed getting premium slots from database")
+		return errors.WithMessage(err, "models.PremiumSlots")
+	}
+	logger.Info("Premium Server Sync: Getting All Guilds Currently Premium from Database")
+	dbGuilds := make(map[int64]struct{}, len(slots))
+	for _, s := range slots {
+		dbGuilds[s.GuildID.Int64] = struct{}{}
+	}
+
+	logger.Infof("Premium Server Sync: All Guilds once premium: %d, Current Premium Guilds: %d", len(allOncePremiumGuildIDs), len(dbGuilds))
+	// For each redis guild not present in DB, remove and emit event
+	for guildID := range allOncePremiumGuildIDs {
+		// if the guild is still premium, skip
+		if _, ok := dbGuilds[guildID]; ok {
+			continue
+		}
+
+		logger.Infof("Premium Server Sync: Removing premium feature flag for guild %d", guildID)
+		// Remove from redis
+		if err := common.RedisPool.Do(radix.FlatCmd(nil, "HDEL", RedisKeyPremiumGuilds, guildID)); err != nil {
+			logger.WithError(err).WithField("guild", guildID).Error("Premium Server Sync: Failed HDEL stale premium guild")
+			continue
+			// continue attempting others
+		}
+
+		err = featureflags.UpdatePluginFeatureFlags(guildID, &Plugin{})
+		if err != nil {
+			logger.WithError(err).WithField("guild", guildID).Error("Premium Server Sync: Failed updating plugin feature flags")
+			continue
+		}
+
+		// trigger removal event to disable premium features
+		if err := scheduledevents2.ScheduleEvent("premium_guild_removed", guildID, time.Now(), nil); err != nil {
+			logger.WithError(err).WithField("guild", guildID).Error("Premium Server Sync: Failed scheduling premium_guild_removed")
+			continue
+		}
+
+	}
+
+	return nil
 }
 
 // Updates ALL premiun slots from ALL sources
