@@ -85,46 +85,25 @@ func SlotDurationLeft(slot *models.PremiumSlot) (duration time.Duration) {
 	return duration
 }
 
-func AttachSlotToGuild(ctx context.Context, slotID int64, userID int64, guildID int64) error {
-	tx, err := common.PQ.BeginTx(ctx, nil)
-	if err != nil {
-		return errors.WithMessage(err, "BeginTX")
-	}
+func AttachSlotToGuild(ctx context.Context, exec boil.ContextExecutor, slotID int64, userID int64, guildID int64) error {
 
-	_, err = tx.Exec("LOCK TABLE premium_slots IN EXCLUSIVE MODE")
+	n, err := models.PremiumSlots(qm.Where("id = ? AND user_id = ? AND guild_id IS NULL AND (permanent OR duration_remaining > 0)", slotID, userID)).UpdateAll(
+		ctx, exec, models.M{"guild_id": null.Int64From(guildID), "attached_at": time.Now()})
 	if err != nil {
-		tx.Rollback()
-		return errors.WithMessage(err, "Lock")
-	}
-
-	// Check if this guild is used in another slot
-	n, err := models.PremiumSlots(qm.Where("guild_id = ?", guildID)).Count(ctx, tx)
-	if err != nil {
-		tx.Rollback()
-		return errors.WithMessage(err, "PremiumSlots.Count")
-	}
-
-	if n > 0 {
-		tx.Rollback()
-		return ErrGuildAlreadyPremium
-	}
-
-	n, err = models.PremiumSlots(qm.Where("id = ? AND user_id = ? AND guild_id IS NULL AND (permanent OR duration_remaining > 0)", slotID, userID)).UpdateAll(
-		ctx, tx, models.M{"guild_id": null.Int64From(guildID), "attached_at": time.Now()})
-	if err != nil {
-		tx.Rollback()
+		logger.Error("Error attaching slot to guild: ", err)
+		logger.Error("Slot ID: ", slotID)
+		logger.Error("User ID: ", userID)
+		logger.Error("Guild ID: ", guildID)
+		// If another transaction attached a different slot to this guild concurrently,
+		// the partial unique index on guild_id will raise a unique violation.
+		if common.ErrPQIsUniqueViolation(err) {
+			return ErrGuildAlreadyPremium
+		}
 		return errors.WithMessage(err, "UpdateAll")
 	}
 
 	if n < 1 {
-		tx.Rollback()
 		return ErrSlotNotFound
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		tx.Rollback()
-		return errors.WithMessage(err, "Commit")
 	}
 
 	err = common.RedisPool.Do(radix.FlatCmd(nil, "HSET", RedisKeyPremiumGuilds, guildID, userID))
@@ -145,21 +124,19 @@ func AttachSlotToGuild(ctx context.Context, slotID int64, userID int64, guildID 
 	return err
 }
 
-func DetachSlotFromGuild(ctx context.Context, slotID int64, userID int64) error {
-	tx, err := common.PQ.BeginTx(ctx, nil)
-	if err != nil {
-		return errors.WithMessage(err, "BeginTX")
-	}
+func DetachSlotFromGuild(ctx context.Context, exec boil.ContextExecutor, slotID int64, userID int64) error {
 
-	slot, err := models.PremiumSlots(qm.Where("id = ? AND user_id = ?", slotID, userID), qm.For("UPDATE")).One(ctx, tx)
+	slot, err := models.PremiumSlots(qm.Where("id = ? AND user_id = ?", slotID, userID), qm.For("UPDATE")).One(ctx, exec)
 	if err != nil {
-		tx.Rollback()
 		return errors.WithMessage(err, "PremiumSlots.One")
 	}
 
 	if slot == nil {
-		tx.Rollback()
 		return ErrSlotNotFound
+	}
+
+	if slot.GuildID.Int64 == 0 {
+		return nil
 	}
 
 	oldGuildID := slot.GuildID.Int64
@@ -169,15 +146,9 @@ func DetachSlotFromGuild(ctx context.Context, slotID int64, userID int64) error 
 	slot.GuildID = null.Int64{}
 	slot.AttachedAt = null.Time{}
 
-	_, err = slot.Update(ctx, tx, boil.Infer())
+	_, err = slot.Update(ctx, exec, boil.Infer())
 	if err != nil {
-		tx.Rollback()
 		return errors.WithMessage(err, "Update")
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return errors.WithMessage(err, "Commit")
 	}
 
 	err = common.RedisPool.Do(radix.FlatCmd(nil, "HDEL", RedisKeyPremiumGuilds, oldGuildID))
@@ -200,13 +171,13 @@ func DetachSlotFromGuild(ctx context.Context, slotID int64, userID int64) error 
 
 // UserPremiumSlots returns all slots for a user
 func UserPremiumSlots(ctx context.Context, userID int64) (slots []*models.PremiumSlot, err error) {
-	slots, err = models.PremiumSlots(qm.Where("user_id = ?", userID), qm.OrderBy("id desc")).AllG(ctx)
+	slots, err = models.PremiumSlots(qm.Where("user_id = ?", userID), qm.OrderBy("id asc")).AllG(ctx)
 	return
 }
 
 // UserPremiumMarkedDeletedSlots returns all slots marked deleted for a user for a specific source
-func UserPremiumMarkedDeletedSlots(ctx context.Context, userID int64, source PremiumSourceType) ([]int64, error) {
-	slots, err := models.PremiumSlots(qm.Where("user_id = ? AND deletes_at IS NOT NULL AND source = ?", userID, source), qm.OrderBy("id desc")).AllG(ctx)
+func UserPremiumMarkedDeletedSlots(ctx context.Context, tx boil.ContextExecutor, userID int64, limit int, source PremiumSourceType) ([]int64, error) {
+	slots, err := models.PremiumSlots(qm.Where("user_id = ? AND deletes_at IS NOT NULL AND source = ?", userID, source), qm.OrderBy("id desc"), qm.Limit(limit)).All(ctx, tx)
 	if err == sql.ErrNoRows {
 		return []int64{}, nil
 	}
@@ -222,48 +193,6 @@ var (
 	ErrGuildAlreadyPremium = errors.New("guild already assigned premium from another slot")
 )
 
-func SlotExpired(ctx context.Context, slot *models.PremiumSlot) error {
-	err := DetachSlotFromGuild(ctx, slot.ID, slot.UserID)
-	if err != nil {
-		return errors.WithMessage(err, "Detach")
-	}
-
-	// Attempt migrating the guild attached to the epxired slot to the next available slot the owner of the slot has
-	tx, err := common.PQ.BeginTx(ctx, nil)
-	if err != nil {
-		return errors.WithMessage(err, "BeginTX")
-	}
-
-	availableSlot, err := models.PremiumSlots(qm.Where("user_id = ? AND guild_id IS NULL and permanent = true", slot.UserID), qm.For("UPDATE")).One(ctx, tx)
-	if err != nil {
-		tx.Rollback()
-
-		// If there's no available slots to migrate the guild to, not much can be done
-		if errors.Cause(err) == sql.ErrNoRows {
-			return nil
-		}
-
-		return errors.WithMessage(err, "models.PremiumSlots")
-	}
-
-	availableSlot.AttachedAt = null.TimeFrom(time.Now())
-	availableSlot.GuildID = slot.GuildID
-
-	_, err = availableSlot.Update(ctx, tx, boil.Whitelist("attached_at", "guild_id"))
-	if err != nil {
-		tx.Rollback()
-		return errors.WithMessage(err, "Update")
-	}
-
-	err = tx.Commit()
-	if err != nil {
-		return errors.WithMessage(err, "Commit")
-	}
-
-	err = common.RedisPool.Do(radix.FlatCmd(nil, "HSET", RedisKeyPremiumGuilds, slot.GuildID.Int64, slot.UserID))
-	return errors.WithMessage(err, "HSET")
-}
-
 // RemovePremiumSlots removes the specifues premium slots and attempts to migrate to other permanent available ones
 // THIS SHOULD BE USED INSIDE A TRANSACTION ONLY, AS OTHERWISE RACE CONDITIONS BE UPON THEE
 func RemovePremiumSlots(ctx context.Context, exec boil.ContextExecutor, userID int64, slotsToRemove []int64) error {
@@ -274,17 +203,17 @@ func RemovePremiumSlots(ctx context.Context, exec boil.ContextExecutor, userID i
 
 	// Find the remainign free slots after the removal of the specified slots
 	remainingFreeSlots := make([]*models.PremiumSlot, 0)
+	toRemove := make(map[int64]struct{}, len(slotsToRemove))
+	for _, id := range slotsToRemove {
+		toRemove[id] = struct{}{}
+	}
 	for _, slot := range userSlots {
 		if slot.GuildID.Valid || !slot.Permanent || SlotDurationLeft(slot) <= 0 {
 			continue
 		}
-
-		for _, v := range slotsToRemove {
-			if v == slot.ID {
-				continue
-			}
+		if _, isRemoving := toRemove[slot.ID]; isRemoving {
+			continue
 		}
-
 		remainingFreeSlots = append(remainingFreeSlots, slot)
 	}
 
@@ -313,7 +242,17 @@ func RemovePremiumSlots(ctx context.Context, exec boil.ContextExecutor, userID i
 				freeSlotsUsed++
 			} else {
 				//else we detach the slot from the guild
-				DetachSlotFromGuild(ctx, slot.ID, slot.UserID)
+				err = DetachSlotFromGuild(ctx, exec, slot.ID, slot.UserID)
+				if err != nil {
+					return errors.WithMessage(err, "DetachSlotFromGuild")
+				}
+			}
+		}
+
+		if slot.Source == string(PremiumSourceTypeCode) {
+			_, err = models.PremiumCodes(qm.Where("slot_id = ?", slot.ID)).DeleteAll(ctx, exec)
+			if err != nil {
+				return errors.WithMessage(err, "PremiumSlots.DeleteAll")
 			}
 		}
 
@@ -386,20 +325,18 @@ func CancelSlotDeletionForUser(ctx context.Context, exec boil.ContextExecutor, u
 	return nil
 }
 
-func RemoveMarkedDeletedSlots(ctx context.Context, exec boil.ContextExecutor, source PremiumSourceType) error {
-	slots, err := models.PremiumSlots(qm.Where("deletes_at IS NOT NULL AND deletes_at < ? AND source = ? ", time.Now(), source)).All(ctx, exec)
+func RemoveMarkedDeletedSlotsForUser(ctx context.Context, exec boil.ContextExecutor, userID int64, source PremiumSourceType) error {
+	slots, err := models.PremiumSlots(qm.Where("deletes_at IS NOT NULL AND deletes_at < ? AND user_id = ? AND source = ? ", time.Now(), userID, source)).All(ctx, exec)
 	if err != nil && err != sql.ErrNoRows {
 		return err
 	}
-	userSlots := make(map[int64][]int64)
+	if len(slots) == 0 {
+		return nil
+	}
+	slotIDs := make([]int64, 0)
 	for _, slot := range slots {
-		userSlots[slot.UserID] = append(userSlots[slot.UserID], slot.ID)
+		slotIDs = append(slotIDs, slot.ID)
 	}
-	for userID, slotIDs := range userSlots {
-		err := RemovePremiumSlots(ctx, exec, userID, slotIDs)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+	logger.Infof("Removing %d marked deleted slots for user %d and source %s", len(slots), userID, source)
+	return RemovePremiumSlots(ctx, exec, userID, slotIDs)
 }

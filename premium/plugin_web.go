@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"emperror.dev/errors"
 	"github.com/botlabs-gg/yagpdb/v2/common"
 	"github.com/botlabs-gg/yagpdb/v2/premium/models"
 	"github.com/botlabs-gg/yagpdb/v2/web"
@@ -165,17 +166,30 @@ func HandlePostUpdateSlot(w http.ResponseWriter, r *http.Request) (tmpl web.Temp
 
 	strSlotID := pat.Param(r, "slotID")
 	parsedSlotID, _ := strconv.ParseInt(strSlotID, 10, 64)
+	slot, err := models.PremiumSlots(qm.Where("id = ?", parsedSlotID), qm.Select(models.PremiumSlotColumns.GuildID)).One(r.Context(), common.PQ)
+	if err != nil {
+		return tmpl, errors.WithMessage(err, "Failed retrieving slot")
+	}
 
-	err = DetachSlotFromGuild(r.Context(), parsedSlotID, user.ID)
+	if slot.GuildID.Int64 == data.GuildID {
+		return tmpl, nil
+	}
+
+	err = DetachSlotFromGuild(r.Context(), common.PQ, parsedSlotID, user.ID)
 	if err != nil {
 		return tmpl, err
 	}
 
 	if data.GuildID != 0 {
-		err = AttachSlotToGuild(r.Context(), parsedSlotID, user.ID, data.GuildID)
+		err = AttachSlotToGuild(r.Context(), common.PQ, parsedSlotID, user.ID, data.GuildID)
 		if err == ErrGuildAlreadyPremium {
 			tmpl.AddAlerts(web.ErrorAlert("Server already has premium from another slot (possibly from another user)"))
+			return tmpl, err
 		}
+	}
+
+	if err != nil {
+		return tmpl, err
 	}
 
 	return tmpl, err
@@ -280,6 +294,7 @@ func HandlePostDetachGuildSlot(w http.ResponseWriter, r *http.Request) (tmpl web
 		return templateData, err
 	}
 
-	err = DetachSlotFromGuild(r.Context(), slot.ID, slot.UserID)
+	err = DetachSlotFromGuild(r.Context(), common.PQ, slot.ID, slot.UserID)
+
 	return templateData, err
 }

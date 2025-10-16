@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -16,10 +15,9 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/analytics"
 	"github.com/botlabs-gg/yagpdb/v2/common"
 	"github.com/botlabs-gg/yagpdb/v2/common/mqueue"
-	"github.com/botlabs-gg/yagpdb/v2/common/templates"
+	"github.com/botlabs-gg/yagpdb/v2/common/pubsub"
 	"github.com/botlabs-gg/yagpdb/v2/feeds"
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
-	"github.com/botlabs-gg/yagpdb/v2/web/discorddata"
 	"github.com/botlabs-gg/yagpdb/v2/youtube/models"
 	"github.com/mediocregopher/radix/v3"
 	"github.com/prometheus/client_golang/prometheus"
@@ -65,10 +63,7 @@ func (p *Plugin) deleteOldVideos() {
 			return
 		case <-ticker.C:
 			var expiring int64
-			videoCacheDays := confYoutubeVideoCacheDays.GetInt()
-			if videoCacheDays < 1 {
-				videoCacheDays = 1
-			}
+			videoCacheDays := max(confYoutubeVideoCacheDays.GetInt(), 1)
 			common.RedisPool.Do(radix.FlatCmd(&expiring, "ZREMRANGEBYSCORE", RedisKeyPublishedVideoList, "-inf", time.Now().AddDate(0, 0, -1*videoCacheDays).Unix()))
 			logger.Infof("Removed %d old videos", expiring)
 		}
@@ -106,43 +101,73 @@ func (p *Plugin) runWebsubChecker() {
 	}
 }
 
+// Concurrently runs fn for each channel with at most workerCount in flight
+func (p *Plugin) processChannelsConcurrently(channels []string, workerCount int, fn func(string)) {
+	if workerCount < 1 {
+		workerCount = 1
+	}
+	jobs := make(chan string, workerCount*2)
+	var wg sync.WaitGroup
+	for i := 0; i < workerCount; i++ {
+		wg.Go(func() {
+			for ch := range jobs {
+				fn(ch)
+			}
+		})
+	}
+	for _, ch := range channels {
+		jobs <- ch
+	}
+	close(jobs)
+	wg.Wait()
+}
+
+func (p *Plugin) webSubSubscribeWithRetry(channel string) {
+	const maxRetries = 3
+	for attempt := 0; attempt <= maxRetries; attempt++ {
+		err := p.WebSubSubscribe(channel)
+		if err == nil {
+			return
+		}
+		if attempt == maxRetries {
+			logger.WithError(err).WithField("yt_channel", channel).Error("websub subscribe failed after retries")
+			return
+		}
+		time.Sleep(time.Second * time.Duration(1<<attempt))
+	}
+}
+
 func (p *Plugin) checkExpiringWebsubs() {
 	err := common.BlockingLockRedisKey(RedisChannelsLockKey, 0, 10)
 	if err != nil {
 		logger.WithError(err).Error("Failed locking channels lock")
 		return
 	}
-	defer common.UnlockRedisKey(RedisChannelsLockKey)
 
 	maxScore := time.Now().Unix()
-
 	var expiring []string
 	err = common.RedisPool.Do(radix.FlatCmd(&expiring, "ZRANGEBYSCORE", RedisKeyWebSubChannels, "-inf", maxScore))
 	if err != nil {
 		logger.WithError(err).Error("Failed checking websubs")
+		common.UnlockRedisKey(RedisChannelsLockKey)
 		return
 	}
 
-	totalExpiring := len(expiring)
-	batchSize := confResubBatchSize.GetInt()
-	logger.Infof("Found %d expiring subs", totalExpiring)
-	expiringChunks := make([][]string, 0)
-	for i := 0; i < totalExpiring; i += batchSize {
-		end := i + batchSize
-		if end > totalExpiring {
-			end = totalExpiring
-		}
-		expiringChunks = append(expiringChunks, expiring[i:end])
-	}
-	for index, chunk := range expiringChunks {
-		logger.Infof("Processing chunk %d of %d for %d expiring youtube subs", index+1, len(expiringChunks), totalExpiring)
-		for _, sub := range chunk {
-			p.WebSubSubscribe(sub)
-		}
-		// sleep for a second before processing next chunk
-		time.Sleep(time.Second)
-	}
+	// Unlock early; subscribing does not need to hold the redis lock
+	common.UnlockRedisKey(RedisChannelsLockKey)
 
+	batchSize := confResubBatchSize.GetInt()
+	totalExpiring := len(expiring)
+	logger.Infof("Found %d expiring subs", totalExpiring)
+	channelChunks := make([][]string, 0)
+	for i := 0; i < totalExpiring; i += batchSize {
+		end := min(i+batchSize, totalExpiring)
+		channelChunks = append(channelChunks, expiring[i:end])
+	}
+	for i, chunk := range channelChunks {
+		logger.Infof("Processing chunk %d of %d for expiring subs", i, len(channelChunks))
+		p.processChannelsConcurrently(chunk, batchSize, func(ch string) { p.webSubSubscribeWithRetry(ch) })
+	}
 }
 
 func (p *Plugin) syncWebSubs() {
@@ -153,50 +178,38 @@ func (p *Plugin) syncWebSubs() {
 		return
 	}
 
-	common.RedisPool.Do(radix.WithConn(RedisKeyWebSubChannels, func(client radix.Conn) error {
-		locked := false
-		if !locked {
-			err := common.BlockingLockRedisKey(RedisChannelsLockKey, 0, 5000)
-			if err != nil {
-				logger.WithError(err).Error("Failed locking channels lock")
-				return err
-			}
-			locked = true
-		}
+	// Lock only while reading from Redis to determine which channels need resubscribe
+	if err := common.BlockingLockRedisKey(RedisChannelsLockKey, 0, 5000); err != nil {
+		logger.WithError(err).Error("Failed locking channels lock")
+		return
+	}
 
-		totalChannels := len(activeChannels)
-		batchSize := confResubBatchSize.GetInt()
-		logger.Infof("Found %d youtube channels", totalChannels)
-		channelChunks := make([][]string, 0)
-		for i := 0; i < totalChannels; i += batchSize {
-			end := i + batchSize
-			if end > totalChannels {
-				end = totalChannels
+	var expiring []string
+	_ = common.RedisPool.Do(radix.WithConn(RedisKeyWebSubChannels, func(client radix.Conn) error {
+		logger.Infof("Found %d youtube channels", len(activeChannels))
+		for _, channel := range activeChannels {
+			var mn int64
+			client.Do(radix.Cmd(&mn, "ZSCORE", RedisKeyWebSubChannels, channel))
+			if mn < time.Now().Unix() {
+				expiring = append(expiring, channel)
 			}
-			channelChunks = append(channelChunks, activeChannels[i:end])
-		}
-		for index, chunk := range channelChunks {
-			logger.Infof("Processing chunk %d of %d for %d youtube channels", index+1, len(channelChunks), totalChannels)
-			var didChunkUpdate bool
-			for _, channel := range chunk {
-				var mn int64
-				client.Do(radix.Cmd(&mn, "ZSCORE", RedisKeyWebSubChannels, channel))
-				if mn < time.Now().Unix() {
-					didChunkUpdate = true
-					// Channel not added to redis, resubscribe and add to redis
-					p.WebSubSubscribe(channel)
-				}
-			}
-			if didChunkUpdate {
-				// sleep for a second before processing next chunk if the chunk had any updates, otherwise the complete sync takes forever
-				time.Sleep(time.Second)
-			}
-		}
-		if locked {
-			common.UnlockRedisKey(RedisChannelsLockKey)
 		}
 		return nil
 	}))
+
+	common.UnlockRedisKey(RedisChannelsLockKey)
+	batchSize := confResubBatchSize.GetInt()
+	channelChunks := make([][]string, 0)
+	totalExpiring := len(expiring)
+	logger.Infof("Found %d expiring subs to youtube", totalExpiring)
+	for i := 0; i < totalExpiring; i += batchSize {
+		end := min(i+batchSize, totalExpiring)
+		channelChunks = append(channelChunks, activeChannels[i:end])
+	}
+	for i, chunk := range channelChunks {
+		logger.Infof("Processing chunk %d of %d for expiring subs", i, len(channelChunks))
+		p.processChannelsConcurrently(chunk, batchSize, func(ch string) { p.webSubSubscribeWithRetry(ch) })
+	}
 }
 
 func (p *Plugin) sendNewVidMessage(sub *models.YoutubeChannelSubscription, video *youtube.Video) {
@@ -228,63 +241,13 @@ func (p *Plugin) sendNewVidMessage(sub *models.YoutubeChannelSubscription, video
 		}
 	}
 
-	var publishAnnouncement bool
-
 	if hasCustomAnnouncement && announcement.Enabled && len(announcement.Message) > 0 {
-		guildState, err := discorddata.GetFullGuild(parsedGuild)
-		if err != nil {
-			logger.WithError(err).Errorf("Failed to get guild state for guild_id %d", parsedGuild)
-			p.DisableGuildFeeds(parsedGuild)
-			return
-		}
-
-		if guildState == nil {
-			logger.Errorf("guild_id %d not found in state for youtube feed", parsedGuild)
-			p.DisableGuildFeeds(parsedGuild)
-			return
-		}
-
-		channelState := guildState.GetChannel(parsedChannel)
-		if channelState == nil {
-			logger.Errorf("channel_id %d for guild_id %d not found in state for youtube feed", parsedChannel, parsedGuild)
-			p.DisableChannelFeeds(parsedChannel)
-			return
-		}
-
-		ctx := templates.NewContext(guildState, channelState, nil)
-		videoDurationString := strings.ToLower(strings.TrimPrefix(video.ContentDetails.Duration, "PT"))
-		videoDuration, err := common.ParseDuration(videoDurationString)
-		if err != nil {
-			videoDuration = time.Duration(0)
-		}
-
-		ctx.Data["URL"] = videoUrl
-		ctx.Data["ChannelName"] = sub.YoutubeChannelName
-		ctx.Data["YoutubeChannelName"] = sub.YoutubeChannelName
-		ctx.Data["YoutubeChannelID"] = sub.YoutubeChannelID
-		ctx.Data["ChannelID"] = sub.ChannelID
-		//should be true for upcoming too as upcoming is also technically a livestream
-		ctx.Data["IsLiveStream"] = (video.Snippet.LiveBroadcastContent == "live" || video.Snippet.LiveBroadcastContent == "upcoming")
-		ctx.Data["IsUpcoming"] = video.Snippet.LiveBroadcastContent == "upcoming"
-		ctx.Data["VideoID"] = video.Id
-		ctx.Data["VideoTitle"] = video.Snippet.Title
-		ctx.Data["VideoThumbnail"] = fmt.Sprintf("https://img.youtube.com/vi/%s/maxresdefault.jpg", video.Id)
-		ctx.Data["VideoDescription"] = video.Snippet.Description
-		ctx.Data["VideoDurationSeconds"] = int(math.Round(videoDuration.Seconds()))
-		//full video object in case people want to do more advanced stuff
-		ctx.Data["Video"] = video
-
-		content, err = ctx.Execute(announcement.Message)
-		//adding role and everyone ping here because most people are stupid and will complain about custom notification not pinging
-		parseMentions = []discordgo.AllowedMentionType{discordgo.AllowedMentionTypeRoles, discordgo.AllowedMentionTypeEveryone}
-		if err != nil {
-			logger.WithError(err).WithField("guild", parsedGuild).Warn("Announcement parsing failed")
-			return
-		}
-		if content == "" {
-			return
-		}
-		publishAnnouncement = ctx.CurrentFrame.PublishResponse
+		pubsub.Publish("custom_youtube_announcement", parsedGuild, CustomYoutubeAnnouncement{
+			GuildID:      parsedGuild,
+			Subscription: *sub,
+			Video:        *video,
+		})
+		return
 	} else if sub.MentionEveryone {
 		content = "Hey @everyone " + content
 		parseMentions = []discordgo.AllowedMentionType{discordgo.AllowedMentionTypeEveryone}
@@ -305,8 +268,8 @@ func (p *Plugin) sendNewVidMessage(sub *models.YoutubeChannelSubscription, video
 		Source:              "youtube",
 		SourceItemID:        "",
 		MessageStr:          content,
-		PublishAnnouncement: publishAnnouncement,
 		Priority:            2,
+		PublishAnnouncement: false,
 		AllowedMentions: discordgo.AllowedMentions{
 			Parse: parseMentions,
 		},
@@ -594,11 +557,7 @@ func (p *Plugin) CheckVideo(parsedVideo XMLFeed) error {
 		return errors.New("Failed parsing youtube timestamp: " + err.Error() + ": " + parsedVideo.Published)
 	}
 
-	videoCacheDays := confYoutubeVideoCacheDays.GetInt()
-	if videoCacheDays < 1 {
-		videoCacheDays = 1
-	}
-
+	videoCacheDays := max(confYoutubeVideoCacheDays.GetInt(), 1)
 	if time.Since(parsedPublishedTime) > time.Hour*24*time.Duration(videoCacheDays) {
 		// don't post videos older than videoCacheDays
 		logger.Infof("Skipped Stale video (published more than %d days ago) for youtube channel %s: video_id: %s", videoCacheDays, channelID, videoID)
@@ -640,7 +599,6 @@ func (p *Plugin) isShortsVideo(video *youtube.Video) bool {
 	videoDurationString := strings.ToLower(strings.TrimPrefix(video.ContentDetails.Duration, "PT"))
 	videoDuration, err := common.ParseDuration(videoDurationString)
 	if err != nil {
-		logger.WithError(err).Errorf("Failed to parse video duration with value %s, assuming it is not a short video", videoDurationString)
 		return false
 	}
 	// videos below 3 minutes can be shorts
