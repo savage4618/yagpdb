@@ -1,6 +1,6 @@
 module github.com/botlabs-gg/yagpdb/v2
 
-go 1.25.0
+go 1.25.4
 
 require (
 	emperror.dev/errors v0.8.1
@@ -60,12 +60,12 @@ require (
 	github.com/volatiletech/sqlboiler/v4 v4.14.2
 	github.com/volatiletech/strmangle v0.0.6
 	goji.io v2.0.2+incompatible
-	golang.org/x/crypto v0.43.0
+	golang.org/x/crypto v0.45.0
 	golang.org/x/image v0.18.0
-	golang.org/x/net v0.46.0
+	golang.org/x/net v0.47.0
 	golang.org/x/oauth2 v0.27.0
-	golang.org/x/sys v0.37.0 // indirect
-	golang.org/x/text v0.30.0
+	golang.org/x/sys v0.38.0 // indirect
+	golang.org/x/text v0.31.0
 	golang.org/x/time v0.3.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028 // indirect
 	google.golang.org/api v0.131.0
@@ -79,6 +79,7 @@ require (
 	github.com/jarcoal/httpmock v1.0.4
 	github.com/justinian/dice v1.0.2
 	github.com/n0madic/twitter-scraper v0.0.0-20230711213008-94503a2bc36c
+	github.com/nicklaw5/helix/v2 v2.32.0
 	github.com/robfig/cron/v3 v3.0.1
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
 )
@@ -93,6 +94,7 @@ require (
 	github.com/chenzhuoyu/base64x v0.0.0-20221115062448-fe3a3abad311 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
+	github.com/golang-jwt/jwt/v4 v4.5.2 // indirect
 	github.com/google/go-cmp v0.6.0 // indirect
 	github.com/google/s2a-go v0.1.4 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.2.5 // indirect
@@ -106,9 +108,6 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.3 // indirect
 	golang.org/x/arch v0.3.0 // indirect
-	golang.org/x/mod v0.29.0 // indirect
-	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/tools v0.38.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20230711160842-782d3b101e98 // indirect
 )
 
