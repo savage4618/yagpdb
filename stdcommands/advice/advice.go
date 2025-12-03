@@ -16,6 +16,7 @@ var Command = &commands.YAGCommand{
 	CmdCategory: commands.CategoryFun,
 	Name:        "Advice",
 	Description: "Don't be afraid to ask for advice!",
+	Aliases:     []string{"dadvice"},
 	Arguments: []*dcmd.ArgDef{
 		{Name: "What", Type: dcmd.String},
 	},

@@ -1,4 +1,4 @@
-# Just some stuff
+# Just some stuff and things
 cmd/yagpdb/static/bower_components
 cmd/yagpdb/static/pages
 cmd/yagpdb/static/index.html
@@ -21,6 +21,8 @@ cmd/shardorchestrator/shardorchestrator
 *.agent
 *.exe
 cmd/shardorchestrator/capturepanics
+yagpdb\debug.log
+debug.log
 __debug_bin*
 app.env
 .scannerwork

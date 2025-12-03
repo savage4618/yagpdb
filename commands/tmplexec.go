@@ -16,7 +16,7 @@ import (
 
 func init() {
 	templates.RegisterSetupFunc(func(ctx *templates.Context) {
-		execUser, execBot := TmplExecCmdFuncs(ctx, 5, false)
+		execUser, execBot := TmplExecCmdFuncs(ctx, 10, false)
 		ctx.ContextFuncs["exec"] = execUser
 		ctx.ContextFuncs["execAdmin"] = execBot
 		ctx.ContextFuncs["userArg"] = tmplUserArg(ctx)

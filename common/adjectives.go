@@ -1475,7 +1475,6 @@ var Adjectives = []string{
 	"fixable",
 	"fixed",
 	"fizzy",
-	"fl",
 	"flabby",
 	"flagrant",
 	"flaky",

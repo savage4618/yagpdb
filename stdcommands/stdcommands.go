@@ -10,7 +10,9 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/banserver"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/calc"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/catfact"
+	"github.com/botlabs-gg/yagpdb/v2/stdcommands/cbbscore"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/ccreqs"
+	"github.com/botlabs-gg/yagpdb/v2/stdcommands/cfbscore"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/cleardm"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/createinvite"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/currentshard"
@@ -34,6 +36,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/listflags"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/listroles"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/memstats"
+	"github.com/botlabs-gg/yagpdb/v2/stdcommands/motivation"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/ping"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/poll"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/roast"
@@ -86,6 +89,8 @@ func (p *Plugin) AddCommands() {
 		calc.Command,
 		topic.Command,
 		catfact.Command,
+		cbbscore.Command,
+		cfbscore.Command,
 		dadjoke.Command,
 		dogfact.Command,
 		advice.Command,
@@ -108,6 +113,7 @@ func (p *Plugin) AddCommands() {
 		forex.Command,
 		roast.Command,
 		eightball.Command,
+		motivation.Command,
 
 		// Maintenance
 		stateinfo.Command,

@@ -1,6 +1,4 @@
-{{define "cp_reddit"}}
-
-{{template "cp_head" .}}
+{{define "cp_reddit"}} {{template "cp_head" .}}
 <header class="page-header">
     <h2>Reddit feeds</h2>
 </header>
@@ -11,12 +9,10 @@
     <div class="col">
         <div class="tabs">
             <ul class="nav nav-tabs">
-                <li class="nav-item active"><a class="nav-link show active" href="#fast-feeds"
-                        aria-controls="fast-feeds" role="tab" data-toggle="tab">
+                <li class="nav-item active"><a class="nav-link show active" href="#fast-feeds" aria-controls="fast-feeds" role="tab" data-toggle="tab">
                         Fast / Simple
                     </a></li>
-                <li class="nav-item"><a class="nav-link" href="#slow-feeds" aria-controls="slow-feeds" role="tab"
-                        data-toggle="tab">
+                <li class="nav-item"><a class="nav-link" href="#slow-feeds" aria-controls="slow-feeds" role="tab" data-toggle="tab">
                         Slow / Advanced
                     </a></li>
             </ul>
@@ -30,11 +26,7 @@
     </div>
 </div>
 
-{{template "cp_footer" .}}
-
-{{end}}
-
-{{define "reddit_feed_tab_content"}}
+{{template "cp_footer" .}} {{end}} {{define "reddit_feed_tab_content"}}
 <!-- /.row -->
 <div class="row mb-5 pb-2">
     <div class="col-md-6">
@@ -57,8 +49,7 @@
             <div class="form-row">
                 <div class="form-group col">
                     <label for="new-subreddit-slow-{{.Slow}}">Subreddit</label>
-                    <input type="text" class="form-control" id="new-subreddit-slow-{{.Slow}}" name="subreddit"
-                        placeholder="discord_irl">
+                    <input type="text" class="form-control" id="new-subreddit-slow-{{.Slow}}" name="subreddit" placeholder="discord_irl">
                 </div>
                 <div class="form-group col">
                     <label for="new-channel-slow-{{.Slow}}">Server Channel</label>
@@ -76,7 +67,8 @@
                         <option value="2">Only post NSFW Posts</option>
                     </select>
                 </div>
-                {{if .Slow}}<div class="form-group col">
+                {{if .Slow}}
+                <div class="form-group col">
                     <label>Minimum needed score</label>
                     <input type="number" min="0" name="min_upvotes" value="5" class="form-control">
                 </div>{{end}}
@@ -87,14 +79,13 @@
 
             <button type="submit" class="btn btn-success">Add</button>
         </form>
-    </div> <!-- col -->
-</div> <!-- row -->
+    </div>
+    <!-- col -->
+</div>
+<!-- row -->
 
 <h3>Current reddit feeds</h3>
-{{$guild := .Dot.ActiveGuild.ID}}
-{{$channels := .Dot.ActiveGuild.Channels}}
-{{$slow := .Slow}}
-{{range .Dot.RedditConfig}}{{if eq .Slow $slow}}
+{{$guild := .Dot.ActiveGuild.ID}} {{$channels := .Dot.ActiveGuild.Channels}} {{$slow := .Slow}} {{range .Dot.RedditConfig}}{{if eq .Slow $slow}}
 <form id="feed-item-{{.ID}}" data-async-form method="post" action="/manage/{{$guild}}/reddit/{{.ID}}/update">
     <div class="row border-bottom border-secondary pb-3">
         <div class="col-lg">
@@ -122,7 +113,8 @@
                         <option value="2" {{if eq .FilterNSFW 2}}selected{{end}}>Only post NSFW Posts</option>
                     </select>
                 </div>
-                {{if .Slow}}<div class="form-group col">
+                {{if .Slow}}
+                <div class="form-group col">
                     <label>Minimum needed score</label>
                     <input type="number" min="0" name="min_upvotes" value="{{.MinUpvotes}}" class="form-control">
                 </div>{{end}}
@@ -145,10 +137,8 @@
 
                 <div class="form-group col">
                     <div class="btn-group mt-4">
-                        <button form="feed-item-{{.ID}}" type="submit" class="btn btn-success ml-sm-3"
-                            formaction="/manage/{{$guild}}/reddit/{{.ID}}/update">Save</button>
-                        <button form="feed-item-{{.ID}}" type="submit" class="btn btn-danger"
-                            formaction="/manage/{{$guild}}/reddit/{{.ID}}/delete">Delete</button>
+                        <button form="feed-item-{{.ID}}" type="submit" class="btn btn-success ml-sm-3" formaction="/manage/{{$guild}}/reddit/{{.ID}}/update">Save</button>
+                        <button form="feed-item-{{.ID}}" type="submit" class="btn btn-danger" formaction="/manage/{{$guild}}/reddit/{{.ID}}/delete">Delete</button>
                     </div>
                 </div>
             </div>
@@ -157,5 +147,4 @@
     </div>
 </form>
 <!-- /.row -->
-{{end}}{{end}}
-{{end}}
+{{end}}{{end}} {{end}}

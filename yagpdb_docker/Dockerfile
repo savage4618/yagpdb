@@ -21,6 +21,7 @@ EXPOSE 80 443
 RUN apk --no-cache add ca-certificates ffmpeg tzdata
 
 COPY --from=builder /appbuild/yagpdb/cmd/yagpdb/yagpdb yagpdb
+COPY --from=builder /appbuild/yagpdb/yagpdb_docker/credentials.json /app/credentials/credentials.json
 
 ENTRYPOINT ["/app/yagpdb"]
 CMD ["-all", "-pa", "-exthttps=false", "-https=true"]

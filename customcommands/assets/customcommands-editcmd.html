@@ -1,5 +1,4 @@
-{{define "cp_custom_commands_edit_cmd"}}
-{{template "cp_head" .}}
+{{define "cp_custom_commands_edit_cmd"}} {{template "cp_head" .}}
 <header class="page-header">
     <h2>Editing Custom Command #{{.CC.LocalID}}</h2>
 </header>
@@ -23,8 +22,7 @@
         <div class="tabs">
             <ul class="nav nav-tabs">
                 <li class="nav-item {{if and (not .CurrentCommandGroup)}}active{{end}}">
-                    <a data-partial-load="true" class="nav-link show {{if not .CurrentCommandGroup}}active{{end}}"
-                        href="/manage/{{.ActiveGuild.ID}}/customcommands/">Ungrouped</a>
+                    <a data-partial-load="true" class="nav-link show {{if not .CurrentCommandGroup}}active{{end}}" href="/manage/{{.ActiveGuild.ID}}/customcommands/">Ungrouped</a>
                 </li>
                 {{$dot := .}}
                 {{range .CommandGroups}}
@@ -36,8 +34,7 @@
                 </li>
                 {{end}}
                 <li class="nav-item">
-                    <form class="form-horizontal" method="post"
-                        action="/manage/{{.ActiveGuild.ID}}/customcommands/creategroup" data-async-form>
+                    <form class="form-horizontal" method="post" action="/manage/{{.ActiveGuild.ID}}/customcommands/creategroup" data-async-form>
                         <input type="text" class="hidden" name="Name" value="Unnamed group">
                         <input clasS="nav-link show" type="submit" value="+"></input>
                     </form>
@@ -56,13 +53,8 @@
                             data-async-form-alertsonly></button>
 
                         <h2 class="card-title">
-                            #{{.CC.LocalID}} -
-                            {{index .CCTriggerTypes .CC.TriggerType}}{{if and (ne .CC.TriggerType 5) (ne .CC.TriggerType 6)}}:
-                            <span
-                                class="cc-text-trigger-span">{{.CC.TextTrigger}}</span>{{else if ne .CC.TriggerType 6}}:
-                            Every
-                            {{call .GetCCInterval .CC}}
-                            {{if eq (call .GetCCIntervalType .CC) 1}}hour(s){{else}}minute(s){{end}}{{end}}
+                            #{{.CC.LocalID}} - {{index .CCTriggerTypes .CC.TriggerType}}{{if and (ne .CC.TriggerType 5) (ne .CC.TriggerType 6)}}:
+                            <span class="cc-text-trigger-span">{{.CC.TextTrigger}}</span>{{else if ne .CC.TriggerType 6}}: Every {{call .GetCCInterval .CC}} {{if eq (call .GetCCIntervalType .CC) 1}}hour(s){{else}}minute(s){{end}}{{end}}
                         </h2>
                         <input type="text" class="hidden form-control" name="id" value="{{.CC.LocalID}}">
                         <div class="row">
@@ -72,8 +64,7 @@
                                     <div class="col">
                                         <div class="form-group">
                                             <label>Trigger type</label>
-                                            <select class="form-control" id="trigger-type-dropdown" name="type"
-                                                onchange="triggerTypeChanged(this)">
+                                            <select class="form-control" id="trigger-type-dropdown" name="type" onchange="triggerTypeChanged(this)">
 
                                                 <option value="none" {{if eq .CC.TriggerType 10}}selected{{end}}>None
                                                 </option>
@@ -111,13 +102,10 @@
                                 <div class="row">
                                     <div class="col" id="trigger-help">
                                         <p id="trigger-desc-none" class="text-danger">
-                                            No trigger: can only be triggered manually by other custom
-                                            commands
+                                            No trigger: can only be triggered manually by other custom commands
                                         </p>
                                         <p id="trigger-desc-cmd">
-                                            <b>Command Trigger</b>: Works the same way as normal commands by using the
-                                            command
-                                            prefix or bot mention followed by the trigger.<br />
+                                            <b>Command Trigger</b>: Works the same way as normal commands by using the command prefix or bot mention followed by the trigger.<br />
                                         </p>
                                         <p id="trigger-desc-prefix">
                                             Any message that starts with the trigger will run the command.
@@ -227,25 +215,19 @@
                                 <div class="row">
                                     <div class="col-lg-12">
                                         <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="reaction_trigger_mode"
-                                                id="reaction-mode-both-{{.CC.LocalID}}" value="0"
-                                                {{if eq .CC.ReactionTriggerMode 0}}checked{{end}}>
+                                            <input class="form-check-input" type="radio" name="reaction_trigger_mode" id="reaction-mode-both-{{.CC.LocalID}}" value="0" {{if eq .CC.ReactionTriggerMode 0}}checked{{end}}>
                                             <label class="form-check-label" for="reaction-mode-both-{{.CC.LocalID}}">
                                                 Added + Removed reactions
                                             </label>
                                         </div>
                                         <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="reaction_trigger_mode"
-                                                id="reaction-mode-added-{{.CC.LocalID}}" value="1"
-                                                {{if eq .CC.ReactionTriggerMode 1}}checked{{end}}>
+                                            <input class="form-check-input" type="radio" name="reaction_trigger_mode" id="reaction-mode-added-{{.CC.LocalID}}" value="1" {{if eq .CC.ReactionTriggerMode 1}}checked{{end}}>
                                             <label class="form-check-label" for="reaction-mode-added-{{.CC.LocalID}}">
                                                 Added reactions only
                                             </label>
                                         </div>
                                         <div class="form-check">
-                                            <input class="form-check-input" type="radio" name="reaction_trigger_mode"
-                                                id="reaction-mode-removed-{{.CC.LocalID}}" value="2"
-                                                {{if eq .CC.ReactionTriggerMode 2}}checked{{end}}>
+                                            <input class="form-check-input" type="radio" name="reaction_trigger_mode" id="reaction-mode-removed-{{.CC.LocalID}}" value="2" {{if eq .CC.ReactionTriggerMode 2}}checked{{end}}>
                                             <label class="form-check-label" for="reaction-mode-removed-{{.CC.LocalID}}">
                                                 Removed reactions only
                                             </label>
@@ -258,8 +240,7 @@
                                     <div id="cc-interval-trigger-details" class="hidden col-lg-4">
                                         <div class="form-group">
                                             <label>Interval</label>
-                                            <input type="number" min="0" class="form-control" name="time_trigger_interval"
-                                                placeholder="" value="{{call $dot.GetCCInterval .CC}}">
+                                            <input type="number" min="0" class="form-control" name="time_trigger_interval" placeholder="" value="{{call $dot.GetCCInterval .CC}}">
                                         </div>
                                     </div>
                                     <div class="col-lg-8">
@@ -274,8 +255,7 @@
                                 <div class="row mt-3">
                                         <div class="form-group col-lg-3">
                                             <label for="trigger">Excluding hours (UTC)</label><br>
-                                            <select name="time_trigger_excluding_hours" class="multiselect form-control"
-                                                multiple="multiple" data-plugin-multiselect>
+                                            <select name="time_trigger_excluding_hours" class="multiselect form-control" multiple="multiple" data-plugin-multiselect>
                                                 {{$selectedExclHours := .CC.TimeTriggerExcludingHours}}
                                                 {{range seq 0 24}}<option value="{{.}}"
                                                     {{if in $selectedExclHours .}}selected{{end}}>{{.}}</option>
@@ -284,8 +264,7 @@
                                         </div>
                                         <div class="form-group col-lg-3">
                                             <label for="trigger">Excluding weekdays (UTC)</label><br>
-                                            <select name="time_trigger_excluding_days" class="multiselect form-control"
-                                                multiple="multiple" data-plugin-multiselect>
+                                            <select name="time_trigger_excluding_days" class="multiselect form-control" multiple="multiple" data-plugin-multiselect>
                                                 <option value="1"
                                                     {{if in .CC.TimeTriggerExcludingDays 1}}selected{{end}}>
                                                     Monday</option>
@@ -380,8 +359,7 @@
                         <div class="row">
                             <div class="col-lg-6">
                                 <div class="form-group">
-                                    <label>Custom command group</label>
-                                    {{$selectedGroup := .CC.GroupID.Int64}}
+                                    <label>Custom command group</label> {{$selectedGroup := .CC.GroupID.Int64}}
                                     <select Name="GroupID" class="form-control">
                                         <option {{if eq $selectedGroup 0}}selected{{end}} value="0">None
                                         </option>
@@ -400,7 +378,7 @@
                                         <h4>Run count</h4>
                                         <p><code>{{.CC.RunCount}}</code></p>
                                     </div>
-                                  
+
                                     <div class="col-auto">
                                         <h4>Last run</h4>
                                         <p>{{if .CC.LastRun.Valid}}{{formatTime .CC.LastRun.Time.UTC}}{{else}}None{{end}}</p>
@@ -437,8 +415,7 @@
                                         Ignore the roles in the following list
                                     </label>
                                 </div>
-                                <select name="roles" class="multiselect form-control" multiple="multiple"
-                                    id="command-roles" data-plugin-multiselect>
+                                <select name="roles" class="multiselect form-control" multiple="multiple" id="command-roles" data-plugin-multiselect>
                                     {{roleOptionsMulti $g.Roles nil .CC.Roles}}
                                 </select>
 
@@ -458,8 +435,7 @@
                                         Ignore the channels in the following list
                                     </label>
                                 </div>
-                                <select name="channels" class="multiselect form-control" multiple="multiple"
-                                    id="command-channels" data-plugin-multiselect>
+                                <select name="channels" class="multiselect form-control" multiple="multiple" id="command-channels" data-plugin-multiselect>
                                     {{textChannelOptionsMulti $g.Channels .CC.Channels}}
                                 </select>
                             </div>
@@ -467,21 +443,15 @@
 
                         <div class="row mt-4">
                             <div class="col">
-                                <button type="submit" class="btn btn-success btn-block"
-                                    formaction="/manage/{{$guild}}/customcommands/commands/{{.CC.LocalID}}/update"
-                                    data-async-form-alertsonly
-                                    id = "save-custom-command"
-                                >Save</button>
+                                <button type="submit" class="btn btn-success btn-block" formaction="/manage/{{$guild}}/customcommands/commands/{{.CC.LocalID}}/update" data-async-form-alertsonly id="save-custom-command">Save</button>
                             </div>
                             <div class="col">
-                                <button type="submit" class="btn btn-danger btn-block"
-                                    formaction="/manage/{{$guild}}/customcommands/commands/{{.CC.LocalID}}/delete">Delete</button>
+                                <button type="submit" class="btn btn-danger btn-block" formaction="/manage/{{$guild}}/customcommands/commands/{{.CC.LocalID}}/delete">Delete</button>
                             </div>
                         </div>
                         <div class="row mt-4" id="interval-cc-run-now">
                             <div class="col">
-                                <button type="submit" class="btn btn-secondary btn-block" title="This will trigger this custom command immediately"
-                                    formaction="/manage/{{$guild}}/customcommands/commands/{{.CC.LocalID}}/update_and_run">Run now</button>
+                                <button type="submit" class="btn btn-secondary btn-block" title="This will trigger this custom command immediately" formaction="/manage/{{$guild}}/customcommands/commands/{{.CC.LocalID}}/update_and_run">Run now</button>
                             </div>
                         </div>
                         <p class="help-block">Tip: Alt + Shift + S also saves the custom command </p>
@@ -550,19 +520,15 @@
         <div class="card-body">
             <div class="modal-wrapper">
                 <div class="modal-text">
-                    <p class="help-block">Available template data is {{template "template_helper_user"}} (and much
-                        more)
+                    <p class="help-block">Available template data is {{template "template_helper_user"}} (and much more)
                     </p>
                     <p class="help-block">Execute bot commands using
                         <code>{{`{{exec "command" "arg1" "arg2"}}`}}</code>, Example:
                         <code>{{"{{exec \"role\" \"yagpdb\"}}"}}</code> will be the same as the user typing
                         <code>(mention or prefix) role yagpdb</code></p>
-                    <p class="help-block">Arguments are available in a string array: <code>.CmdArgs</code><br>
-                        Access
-                        single arguments by index using <code>{{"{{index .CmdArgs 0}}"}}</code><br>Get the number of
-                        arguments using <code>{{"{{len .CmdArgs}}"}}</code><br>Loop over them with
-                        <br><code>{{"{{range .CmdArgs}}{{.}}"}} <- that dot will be replaced by the current argument we're looping over{{"{{end}}"}}</code><br>"end"
-                        marks the end of the for loop.</p>
+                    <p class="help-block">Arguments are available in a string array: <code>.CmdArgs</code><br> Access single arguments by index using <code>{{"{{index .CmdArgs 0}}"}}</code><br>Get the number of arguments using <code>{{"{{len .CmdArgs}}"}}</code><br>Loop over
+                        them with
+                        <br><code>{{"{{range .CmdArgs}}{{.}}"}} <- that dot will be replaced by the current argument we're looping over{{"{{end}}"}}</code><br>"end" marks the end of the for loop.</p>
                     <!-- {{/* .IgnoreMe */}} -->
                     <p>
                         See the <a href="https://help.yagpdb.xyz/docs/reference/templates/" target="_blank">templating</a> and <a
@@ -590,7 +556,7 @@
 <script src="/static/vendorr/tln/tln.min.js"></script>
 <link rel="stylesheet" href="/static/vendorr/tln/tln.min.css">
 <style>
-    html.dark .input-group-prepend > .input-group-text {
+    html.dark .input-group-prepend>.input-group-text {
         background: #191c21;
     }
 </style>
