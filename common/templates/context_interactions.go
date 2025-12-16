@@ -12,6 +12,8 @@ import (
 
 var ErrTooManyInteractionResponses = errors.New("cannot respond to an interaction > 1 time; consider using a followup")
 
+const TemplateCustomIDPrefix = "templates-"
+
 func interactionContextFuncs(c *Context) {
 	c.addContextFunc("deleteInteractionResponse", c.tmplDeleteInteractionResponse)
 	c.addContextFunc("editResponse", c.tmplEditInteractionResponse(true))
@@ -27,7 +29,26 @@ func interactionContextFuncs(c *Context) {
 	c.addContextFunc("updateMessageNoEscape", c.tmplUpdateMessage(false))
 }
 
-func CreateModal(values ...interface{}) (*discordgo.InteractionResponse, error) {
+func CreateModalBuilder(customID string, title string, components ...any) (*ModalBuilder, error) {
+	cid, err := validateCustomID(customID, nil)
+	if err != nil {
+		return nil, err
+	}
+	modal := &ModalBuilder{
+		Title:    title,
+		CustomID: cid,
+	}
+	for _, component := range components {
+		_, err := modal.addComponent(component)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return modal, nil
+}
+
+func CreateModal(values ...any) (*discordgo.InteractionResponse, error) {
 	if len(values) < 1 {
 		return &discordgo.InteractionResponse{}, errors.New("no values passed to component builder")
 	}
@@ -38,7 +59,11 @@ func CreateModal(values ...interface{}) (*discordgo.InteractionResponse, error) 
 		m = t
 	case *SDict:
 		m = *t
-	case map[string]interface{}:
+	case ModalBuilder:
+		return t.toModal()
+	case *ModalBuilder:
+		return t.toModal()
+	case map[string]any:
 		m = t
 	default:
 		dict, err := StringKeyDictionary(values...)
@@ -48,14 +73,29 @@ func CreateModal(values ...interface{}) (*discordgo.InteractionResponse, error) 
 		m = dict
 	}
 
-	modal := &discordgo.InteractionResponseData{CustomID: "templates-0"} // default cID if not set
+	modalBuilder := &ModalBuilder{
+		CustomID: TemplateCustomIDPrefix + "-0",
+	}
+	_, hasComponentsKey := m["components"]
+	_, hasFieldsKey := m["fields"]
+	if hasComponentsKey && hasFieldsKey {
+		return nil, errors.New("cannot have both 'components' and 'fields' in a cmodal")
+	}
 
 	for key, val := range m {
 		switch key {
 		case "title":
-			modal.Title = ToString(val)
+			modalBuilder.Title = ToString(val)
 		case "custom_id":
-			modal.CustomID = "templates-" + ToString(val)
+			cid, err := validateCustomID(ToString(val), nil)
+			if err != nil {
+				return nil, err
+			}
+			modalBuilder.CustomID = cid
+		case "components":
+			modalBuilder.Set("components", val)
+
+		//TODO: Deprecate this key in future versions
 		case "fields":
 			if val == nil {
 				continue
@@ -79,7 +119,7 @@ func CreateModal(values ...interface{}) (*discordgo.InteractionResponse, error) 
 						return nil, err
 					}
 					usedCustomIDs[field.CustomID] = true
-					modal.Components = append(modal.Components, discordgo.ActionsRow{Components: []discordgo.InteractiveComponent{field}})
+					modalBuilder.Components = append(modalBuilder.Components, discordgo.ActionsRow{Components: []discordgo.InteractiveComponent{field}})
 				}
 			} else {
 				f, err := CreateComponent(discordgo.TextInputComponent, val)
@@ -94,7 +134,7 @@ func CreateModal(values ...interface{}) (*discordgo.InteractionResponse, error) 
 				if err != nil {
 					return nil, err
 				}
-				modal.Components = append(modal.Components, discordgo.ActionsRow{Components: []discordgo.InteractiveComponent{field}})
+				modalBuilder.Components = append(modalBuilder.Components, discordgo.ActionsRow{Components: []discordgo.InteractiveComponent{field}})
 			}
 		default:
 			return nil, errors.New(`invalid key "` + key + `" passed to send message builder`)
@@ -102,10 +142,7 @@ func CreateModal(values ...interface{}) (*discordgo.InteractionResponse, error) 
 
 	}
 
-	return &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseModal,
-		Data: modal,
-	}, nil
+	return modalBuilder.toModal()
 }
 
 func (c *Context) tmplDeleteInteractionResponse(interactionToken, msgID interface{}, delaySeconds ...interface{}) (interface{}, error) {
@@ -276,11 +313,15 @@ func (c *Context) tmplSendModal(modal interface{}) (interface{}, error) {
 	var typedModal *discordgo.InteractionResponse
 	var err error
 	switch m := modal.(type) {
+	case ModalBuilder:
+		typedModal, err = m.toModal()
+	case *ModalBuilder:
+		typedModal, err = m.toModal()
 	case *discordgo.InteractionResponse:
 		typedModal = m
 	case discordgo.InteractionResponse:
 		typedModal = &m
-	case SDict, *SDict, map[string]interface{}:
+	case SDict, *SDict, map[string]any:
 		typedModal, err = CreateModal(m)
 	default:
 		return "", errors.New("invalid modal passed to sendModal")
