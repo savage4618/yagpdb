@@ -1,6 +1,7 @@
 package trivia
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -156,10 +157,23 @@ func (t *triviaSession) tick() (ended bool) {
 
 	if time.Since(t.startedAt) > TriviaDuration {
 		t.ended = true
+		t.processScores()
 		t.updateMessage()
 	}
 
 	return t.ended
+}
+
+func (t *triviaSession) processScores() {
+	// Determine winners and losers
+	ctx := context.Background()
+	for _, v := range t.SelectedOptions {
+		isCorrect := t.Question.Options[v.Option] == t.Question.Answer
+		err := MarkAnswer(ctx, t.GuildID, v.User.ID, isCorrect)
+		if err != nil {
+			logger.WithError(err).Error("failed processing trivia score")
+		}
+	}
 }
 
 func (t *triviaSession) updateMessage() {
