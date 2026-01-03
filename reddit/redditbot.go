@@ -18,6 +18,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
 	"github.com/botlabs-gg/yagpdb/v2/lib/go-reddit"
 	"github.com/botlabs-gg/yagpdb/v2/reddit/models"
+	"github.com/mediocregopher/radix/v3"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	"github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -33,41 +34,63 @@ var (
 	confMaxPostsHourFast = config.RegisterOption("yagpdb.reddit.fast_max_posts_hour", "Max posts per hour per guild for fast feed", 60)
 	confMaxPostsHourSlow = config.RegisterOption("yagpdb.reddit.slow_max_posts_hour", "Max posts per hour per guild for slow feed", 120)
 
-	feedLock sync.Mutex
-	fastFeed *PostFetcher
-	slowFeed *PostFetcher
+	lastFeedSuccessAt = time.Now()
+	feedLock          sync.Mutex
+	fastFeed          *PostFetcher
+	slowFeed          *PostFetcher
 )
 
 func (p *Plugin) StartFeed() {
 	go p.runBot()
+	go p.checkFeed()
 }
 
 func (p *Plugin) StopFeed(wg *sync.WaitGroup) {
-	wg.Add(1)
-
 	feedLock.Lock()
 
 	if fastFeed != nil {
+		wg.Add(1)
 		ff := fastFeed
 		go func() {
 			ff.StopChan <- wg
 		}()
 		fastFeed = nil
-	} else {
-		wg.Done()
 	}
 
 	if slowFeed != nil {
+		wg.Add(1)
 		sf := slowFeed
 		go func() {
 			sf.StopChan <- wg
 		}()
 		slowFeed = nil
-	} else {
-		wg.Done()
+	}
+
+	select {
+	case p.stopFeedChan <- wg:
+		wg.Add(1)
+	default:
 	}
 
 	feedLock.Unlock()
+}
+
+func (p *Plugin) checkFeed() {
+	ticker := time.NewTicker(time.Minute * 1)
+	for {
+		select {
+		case <-ticker.C:
+			logger.Infof("Checking Feed Status, last success was %s ago", time.Since(lastFeedSuccessAt))
+			if time.Since(lastFeedSuccessAt) > (15 * time.Minute) {
+				logger.Warnf("No successful feed since %s, restarting", time.Since(lastFeedSuccessAt))
+				p.restartFeed()
+				return
+			}
+		case wg := <-p.stopFeedChan:
+			wg.Done()
+			return
+		}
+	}
 }
 
 func UserAgent() string {
@@ -79,6 +102,17 @@ func setupClient() *reddit.Client {
 		"a", reddit.ScopeEdit+" "+reddit.ScopeRead)
 	redditClient := authenticator.GetAuthClient(&oauth2.Token{RefreshToken: confRefreshToken.GetString()}, UserAgent())
 	return redditClient
+}
+
+func (p *Plugin) restartFeed() {
+	go func() {
+		wg := new(sync.WaitGroup)
+		p.StopFeed(wg)
+		wg.Wait()
+		common.RedisPool.Do(radix.Cmd(nil, "DEL", KeyLastScannedPostIDFast))
+		common.RedisPool.Do(radix.Cmd(nil, "DEL", KeyLastScannedPostIDSlow))
+		p.StartFeed()
+	}()
 }
 
 func (p *Plugin) runBot() {

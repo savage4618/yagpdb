@@ -1,8 +1,14 @@
 package trivia
 
-import "github.com/botlabs-gg/yagpdb/v2/common"
+import (
+	"sync"
 
-type Plugin struct{}
+	"github.com/botlabs-gg/yagpdb/v2/common"
+)
+
+type Plugin struct {
+	stopWorkers chan *sync.WaitGroup
+}
 
 func (p *Plugin) PluginInfo() *common.PluginInfo {
 	return &common.PluginInfo{
@@ -15,5 +21,8 @@ func (p *Plugin) PluginInfo() *common.PluginInfo {
 var logger = common.GetPluginLogger(&Plugin{})
 
 func RegisterPlugin() {
-	common.RegisterPlugin(&Plugin{})
+	common.InitSchemas("trivia", DBSchemas...)
+	common.RegisterPlugin(&Plugin{
+		stopWorkers: make(chan *sync.WaitGroup),
+	})
 }
