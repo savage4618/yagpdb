@@ -37,6 +37,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/listroles"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/memstats"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/motivation"
+	"github.com/botlabs-gg/yagpdb/v2/stdcommands/nbascore"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/nflscore"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/ping"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/poll"
@@ -116,6 +117,7 @@ func (p *Plugin) AddCommands() {
 		eightball.Command,
 		motivation.Command,
 		nflscore.Command,
+		nbascore.Command,
 
 		// Maintenance
 		stateinfo.Command,
