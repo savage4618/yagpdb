@@ -42,13 +42,15 @@ func setRoleTriggerCooldown(guildID, userID, roleID int64, duration int) error {
 	return common.RedisPool.Do(radix.FlatCmd(nil, "SETEX", keyRoleTriggerCooldown(guildID, userID, roleID), duration, "1"))
 }
 
-func BotCachedGetCommandsWithRoleTriggers(guildID int64, ctx context.Context) ([]*models.CustomCommand, error) {
-	v, err := cachedCommandsMessage.GetCustomFetch(guildID, func(key interface{}) (interface{}, error) {
+var cachedCommandsRoleTrigger = common.CacheSet.RegisterSlot("custom_commands_role_trigger", nil, int64(0))
+
+func BotCachedGetCommandsWithRoleTrigger(guildID int64, ctx context.Context) ([]*models.CustomCommand, error) {
+	v, err := cachedCommandsRoleTrigger.GetCustomFetch(guildID, func(key interface{}) (interface{}, error) {
 		var cmds []*models.CustomCommand
 		var err error
 
 		common.LogLongCallTime(time.Second, true, "Took longer than a second to fetch custom commands from db", logrus.Fields{"guild": guildID}, func() {
-			cmds, err = models.CustomCommands(qm.Where("guild_id = ? AND trigger_type = 11 and disabled = false", guildID), qm.OrderBy("local_id desc"), qm.Load("Group")).AllG(ctx)
+			cmds, err = models.CustomCommands(qm.Where("guild_id = ? AND trigger_type = 11", guildID), qm.OrderBy("local_id desc"), qm.Load("Group")).AllG(ctx)
 		})
 
 		return cmds, err
@@ -87,7 +89,7 @@ func CmdRunsForRole(cc *models.CustomCommand, role *discordgo.Role) bool {
 }
 
 func findRoleTriggerCommands(ctx context.Context, guildID int64) (matches []*TriggeredCC, err error) {
-	allCmds, err := BotCachedGetCommandsWithRoleTriggers(guildID, ctx)
+	allCmds, err := BotCachedGetCommandsWithRoleTrigger(guildID, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -95,11 +97,7 @@ func findRoleTriggerCommands(ctx context.Context, guildID int64) (matches []*Tri
 	matches = make([]*TriggeredCC, 0, len(allCmds))
 
 	for _, cmd := range allCmds {
-		if cmd.R.Group != nil && cmd.R.Group.Disabled {
-			continue
-		}
-
-		if cmd.ContextChannel == 0 {
+		if cmd.Disabled || cmd.R.Group != nil && cmd.R.Group.Disabled || cmd.ContextChannel == 0 {
 			continue
 		}
 
@@ -122,6 +120,16 @@ func handleGuildAuditLogEntryCreate(evt *eventsystem.EventData) {
 		return
 	}
 
+	commands, err := findRoleTriggerCommands(evt.Context(), data.GuildID)
+	if err != nil {
+		logger.WithField("guild", data.GuildID).WithError(err).Warn("failed fetching role trigger commands")
+		return
+	}
+
+	if len(commands) == 0 {
+		return
+	}
+
 	var roleChanges []struct {
 		roleID int64
 		added  bool
@@ -137,7 +145,6 @@ func handleGuildAuditLogEntryCreate(evt *eventsystem.EventData) {
 		}
 
 		isRoleAdded := *change.Key == discordgo.AuditLogChangeKeyRoleAdd
-
 		var roles []map[string]any
 		if change.NewValue != nil {
 			if roleArray, ok := change.NewValue.([]any); ok {
@@ -148,7 +155,6 @@ func handleGuildAuditLogEntryCreate(evt *eventsystem.EventData) {
 				}
 			}
 		}
-
 		for _, roleMap := range roles {
 			if roleIDStr, ok := roleMap["id"].(string); ok {
 				if roleID, err := strconv.ParseInt(roleIDStr, 10, 64); err == nil {
@@ -170,7 +176,7 @@ func handleGuildAuditLogEntryCreate(evt *eventsystem.EventData) {
 
 	targetMember, err := bot.GetMember(data.GuildID, targetUserID)
 	if err != nil {
-		logger.WithError(err).Warn("failed getting target member for role trigger")
+		logger.WithField("guild", data.GuildID).WithField("TargetUserID", targetUserID).WithError(err).Warn("failed getting target member for role trigger")
 		return
 	}
 
@@ -180,12 +186,7 @@ func handleGuildAuditLogEntryCreate(evt *eventsystem.EventData) {
 
 	modMember, err := bot.GetMember(data.GuildID, modUserID)
 	if err != nil {
-		logger.WithError(err).Warn("failed getting mod member for role trigger")
-		return
-	}
-	commands, err := findRoleTriggerCommands(evt.Context(), data.GuildID)
-	if err != nil {
-		logger.WithError(err).Warn("failed fetching role trigger commands")
+		logger.WithField("guild", data.GuildID).WithField("ModUserID", modUserID).WithError(err).Warn("failed getting mod member for role trigger")
 		return
 	}
 
@@ -193,7 +194,7 @@ func handleGuildAuditLogEntryCreate(evt *eventsystem.EventData) {
 		// Check cooldown
 		canTrigger, err := checkRoleTriggerCooldown(data.GuildID, targetUserID, roleChange.roleID)
 		if err != nil {
-			logger.WithError(err).Warn("failed checking role trigger cooldown")
+			logger.WithField("guild", data.GuildID).WithField("TargetUserID", targetUserID).WithField("RoleID", roleChange.roleID).WithError(err).Warn("failed checking role trigger cooldown")
 			continue
 		}
 
@@ -220,11 +221,6 @@ func handleGuildAuditLogEntryCreate(evt *eventsystem.EventData) {
 		metricsExecutedCommands.With(prometheus.Labels{"trigger": "role"}).Inc()
 		filteredCommands := make([]*TriggeredCC, 0, len(commands))
 		for _, cmd := range commands {
-			cs := gs.GetChannel(cmd.CC.ContextChannel)
-			if cs == nil {
-				continue
-			}
-
 			cmdMode := int(cmd.CC.RoleTriggerMode)
 			if cmdMode == RoleTriggerModeAdd && !roleChange.added {
 				continue
@@ -251,12 +247,15 @@ func handleGuildAuditLogEntryCreate(evt *eventsystem.EventData) {
 		}
 
 		if err := setRoleTriggerCooldown(data.GuildID, targetUserID, roleChange.roleID, cooldown); err != nil {
-			logger.WithError(err).Warn("failed setting role trigger cooldown")
+			logger.WithField("guild", data.GuildID).WithField("TargetUserID", targetUserID).WithField("RoleID", roleChange.roleID).WithError(err).Warn("failed setting role trigger cooldown")
 			continue
 		}
 
 		for _, cmd := range filteredCommands {
 			cs := gs.GetChannel(cmd.CC.ContextChannel)
+			if cs == nil {
+				continue
+			}
 			// Create template context with role trigger specific variables
 			tmplCtx := templates.NewContext(gs, cs, nil)
 			tmplCtx.GS = gs
