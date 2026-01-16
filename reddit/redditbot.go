@@ -66,10 +66,11 @@ func (p *Plugin) StopFeed(wg *sync.WaitGroup) {
 		slowFeed = nil
 	}
 
-	wg.Add(1)
-	go func() {
-		p.stopFeedChan <- wg
-	}()
+	select {
+	case p.stopFeedChan <- wg:
+		wg.Add(1)
+	default:
+	}
 
 	feedLock.Unlock()
 }
@@ -80,13 +81,12 @@ func (p *Plugin) checkFeed() {
 		select {
 		case <-ticker.C:
 			logger.Infof("Checking Feed Status, last success was %s ago", time.Since(lastFeedSuccessAt))
-			if time.Since(lastFeedSuccessAt) > (15 * time.Minute) {
+			if time.Since(lastFeedSuccessAt) > (10 * time.Minute) {
 				logger.Warnf("No successful feed since %s, restarting", time.Since(lastFeedSuccessAt))
 				p.restartFeed()
 				return
 			}
 		case wg := <-p.stopFeedChan:
-			logger.Infof("Stopping feed checker, count: %d", wg)
 			wg.Done()
 			return
 		}

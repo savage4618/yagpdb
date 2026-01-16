@@ -22,6 +22,12 @@ ALTER TABLE ticket_configs ADD COLUMN IF NOT EXISTS tickets_transcripts_channel_
 `, `
 ALTER TABLE ticket_configs ADD COLUMN IF NOT EXISTS append_buttons BIGINT NOT NULL DEFAULT 0;
 `, `
+ALTER TABLE ticket_configs ADD COLUMN IF NOT EXISTS use_threaded_tickets BOOLEAN NOT NULL DEFAULT false;
+`, `
+ALTER TABLE ticket_configs ADD COLUMN IF NOT EXISTS tickets_thread_channel_id BIGINT NOT NULL DEFAULT 0;
+`, `
+ALTER TABLE ticket_configs ADD COLUMN IF NOT EXISTS lock_and_archive_thread_on_close BOOLEAN NOT NULL DEFAULT false;
+`, `
 CREATE TABLE IF NOT EXISTS tickets (
 	guild_id BIGINT NOT NULL,
 	local_id BIGINT NOT NULL,
@@ -37,10 +43,10 @@ CREATE TABLE IF NOT EXISTS tickets (
 
 	author_id BIGINT NOT NULL,
 	author_username_discrim TEXT NOT NULL,
-
-	PRIMARY KEY(guild_id, local_id)
+	PRIMARY KEY(guild_id, local_id
 );
-
+`, `
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS is_admin_only BOOLEAN NOT NULL DEFAULT false;
 `, `
 CREATE INDEX IF NOT EXISTS tickets_guild_id_channel_id_idx ON tickets(guild_id, channel_id);
 
