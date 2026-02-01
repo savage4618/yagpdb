@@ -656,13 +656,14 @@ var ModerationCommands = []*commands.YAGCommand{
 		},
 	},
 	{
-		CustomEnabled:   true,
-		CmdCategory:     commands.CategoryModeration,
-		Name:            "Clean",
-		Description:     "Delete the last number of messages from chat, optionally filtering by user, max age and regex or ignoring pinned messages.",
-		LongDescription: "Specify a regex with \"-r regex_here\" and max age with \"-ma 1h10m\"\nYou can invert the regex match (i.e. only clear messages that do not match the given regex) by supplying the `-im` flag\nNote: Will only look in the last 1k messages, and none > 2 weeks old.",
-		Aliases:         []string{"clear", "cl"},
-		RequiredArgs:    1,
+		CustomEnabled:      true,
+		CmdCategory:        commands.CategoryModeration,
+		Name:               "Clean",
+		GuildScopeCooldown: 10,
+		Description:        "Delete the last number of messages from chat, optionally filtering by user, max age and regex or ignoring pinned messages.",
+		LongDescription:    "Specify a regex with \"-r regex_here\" and max age with \"-ma 1h10m\"\nYou can invert the regex match (i.e. only clear messages that do not match the given regex) by supplying the `-im` flag\nNote: Will only look in the last 1k messages, and none > 2 weeks old.",
+		Aliases:            []string{"clear", "cl"},
+		RequiredArgs:       1,
 		Arguments: []*dcmd.ArgDef{
 			{Name: "Num", Type: &dcmd.IntArg{Min: 1, Max: 100}},
 			{Name: "User", Type: dcmd.UserID, Default: 0},
@@ -732,14 +733,10 @@ var ModerationCommands = []*commands.YAGCommand{
 			}
 
 			if parsed.Switches["nopin"].Bool() {
-				pinned, err := common.BotSession.ChannelMessagesPinned(parsed.ChannelID)
-				if err != nil {
-					return "Failed fetching pinned messages", err
-				}
-				filters = append(filters, NewIgnorePinnedMessagesFilter(pinned))
+				filters = append(filters, &IgnorePinnedMessagesFilter{})
 			}
 
-			if onlyDeleteWithAttachments := parsed.Switches["a"].Bool(); onlyDeleteWithAttachments {
+			if parsed.Switches["a"].Bool() {
 				filters = append(filters, &MessagesWithAttachmentsFilter{})
 			}
 
@@ -1384,23 +1381,10 @@ func (f *MessageAgeFilter) Matches(msg *dstate.MessageState) (delete bool) {
 }
 
 // Do not delete pinned messages.
-type IgnorePinnedMessagesFilter struct {
-	PinnedMsgIDs map[int64]struct{}
-}
-
-func NewIgnorePinnedMessagesFilter(pinned []*discordgo.Message) *IgnorePinnedMessagesFilter {
-	ids := make(map[int64]struct{})
-	for _, msg := range pinned {
-		ids[msg.ID] = struct{}{}
-	}
-	return &IgnorePinnedMessagesFilter{ids}
-}
+type IgnorePinnedMessagesFilter struct{}
 
 func (f *IgnorePinnedMessagesFilter) Matches(msg *dstate.MessageState) (delete bool) {
-	if _, pinned := f.PinnedMsgIDs[msg.ID]; pinned {
-		return false
-	}
-	return true
+	return !msg.Pinned
 }
 
 // Only delete messages with attachments.

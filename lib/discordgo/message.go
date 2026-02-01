@@ -17,6 +17,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/sirupsen/logrus"
 )
@@ -319,6 +320,16 @@ type File struct {
 	Reader      io.Reader
 }
 
+type PinnedMessage struct {
+	Message  *Message  `json:"message"`
+	PinnedAt time.Time `json:"pinned_at"`
+}
+
+type PinnedItems struct {
+	HasMore bool             `json:"has_more"`
+	Items   []*PinnedMessage `json:"items"`
+}
+
 // MessageSend stores all parameters you can send with ChannelMessageSendComplex.
 type MessageSend struct {
 	Content         string              `json:"content,omitempty"`
@@ -355,17 +366,20 @@ func (m *MessageEdit) MarshalJSON() ([]byte, error) {
 	type MessageEditAlias MessageEdit
 	temp := struct {
 		*MessageEditAlias
-		Content         *string             `json:"content,omitempty"`
-		Components      []TopLevelComponent `json:"components"`
-		Embeds          *[]*MessageEmbed    `json:"embeds,omitempty"`
-		AllowedMentions *AllowedMentions    `json:"allowed_mentions,omitempty"`
-		Flags           *MessageFlags       `json:"flags,omitempty"`
+		Content         *string              `json:"content,omitempty"`
+		Components      *[]TopLevelComponent `json:"components,omitempty"`
+		Embeds          *[]*MessageEmbed     `json:"embeds,omitempty"`
+		AllowedMentions *AllowedMentions     `json:"allowed_mentions,omitempty"`
+		Flags           *MessageFlags        `json:"flags,omitempty"`
 	}{
 		MessageEditAlias: (*MessageEditAlias)(m),
 		Content:          m.Content,
-		Components:       m.Components,
 		AllowedMentions:  &m.AllowedMentions,
 		Flags:            &m.Flags,
+	}
+
+	if m.Components != nil {
+		temp.Components = &m.Components
 	}
 
 	if m.Embeds != nil {

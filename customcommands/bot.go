@@ -197,7 +197,7 @@ var cmdDiagnoseCCTriggers = &commands.YAGCommand{
 		{Name: "input", Type: dcmd.String},
 	},
 	RequireDiscordPerms: []int64{discordgo.PermissionManageGuild},
-	SlashCommandEnabled: false,
+	SlashCommandEnabled: true,
 	DefaultEnabled:      true,
 	RunFunc: func(data *dcmd.Data) (interface{}, error) {
 		cmds, err := BotCachedGetCommandsWithMessageTriggers(data.GuildData.GS.ID, data.Context())
@@ -615,6 +615,8 @@ func ExecuteCustomCommand(cmd *models.CustomCommand, tmplCtx *templates.Context)
 		errChannel := tmplCtx.CurrentFrame.CS.ID
 		if cmd.RedirectErrorsChannel != 0 {
 			errChannel = cmd.RedirectErrorsChannel
+		} else if cmd.R.Group != nil && cmd.R.Group.RedirectErrorsChannel != 0 {
+			errChannel = cmd.R.Group.RedirectErrorsChannel
 		}
 
 		if cmd.ShowErrors {
@@ -650,6 +652,8 @@ func ExecuteCustomCommand(cmd *models.CustomCommand, tmplCtx *templates.Context)
 		errChannel := tmplCtx.CurrentFrame.CS.ID
 		if cmd.RedirectErrorsChannel != 0 {
 			errChannel = cmd.RedirectErrorsChannel
+		} else if cmd.R.Group != nil && cmd.R.Group.RedirectErrorsChannel != 0 {
+			errChannel = cmd.R.Group.RedirectErrorsChannel
 		}
 
 		if cmd.ShowErrors {
@@ -813,6 +817,8 @@ func onExecPanic(cmd *models.CustomCommand, err error, tmplCtx *templates.Contex
 	errChannel := tmplCtx.CurrentFrame.CS.ID
 	if cmd.RedirectErrorsChannel != 0 {
 		errChannel = cmd.RedirectErrorsChannel
+	} else if cmd.R.Group != nil && cmd.R.Group.RedirectErrorsChannel != 0 {
+		errChannel = cmd.R.Group.RedirectErrorsChannel
 	}
 
 	if cmd.ShowErrors {

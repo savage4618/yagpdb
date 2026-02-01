@@ -22,9 +22,10 @@ import (
 )
 
 var (
-	ErrTooManyCalls    = errors.New("too many calls to this function")
-	ErrTooManyAPICalls = errors.New("too many potential Discord API calls")
-	ErrRegexCacheLimit = errors.New("too many unique regular expressions (regex)")
+	ErrTooManyCalls           = errors.New("too many calls to this function")
+	ErrTooManyAPICalls        = errors.New("too many potential Discord API calls")
+	ErrFuncRemovedTemporarily = errors.New("this function is removed temporarily")
+	ErrRegexCacheLimit        = errors.New("too many unique regular expressions (regex)")
 )
 
 func (c *Context) tmplSendDM(s ...interface{}) string {
@@ -598,7 +599,7 @@ func (c *Context) tmplEditComponentsMessage(filterSpecialMentions bool) func(cha
 
 func (c *Context) tmplPinMessage(unpin bool) func(channel, msgID interface{}) (string, error) {
 	return func(channel, msgID interface{}) (string, error) {
-		if c.IncreaseCheckCallCounter("message_pins", 5) {
+		if c.IncreaseCheckCallCounter("message_pins", 2) {
 			return "", ErrTooManyCalls
 		}
 
@@ -1703,7 +1704,7 @@ func (c *Context) tmplGetChannelOrThread(channel interface{}) (*CtxChannel, erro
 
 func (c *Context) tmplGetChannelPins(pinCount bool) func(channel interface{}) (interface{}, error) {
 	return func(channel interface{}) (interface{}, error) {
-		if c.IncreaseCheckCallCounterPremium("channel_pins", 2, 4) {
+		if c.IncreaseCheckCallCounterPremium("channel_pins", 1, 2) {
 			return 0, ErrTooManyCalls
 		}
 
@@ -1712,21 +1713,26 @@ func (c *Context) tmplGetChannelPins(pinCount bool) func(channel interface{}) (i
 			return 0, errors.New("unknown channel")
 		}
 
-		msg, err := common.BotSession.ChannelMessagesPinned(cID)
-		if err != nil {
-			return 0, err
+		hasMore := true
+		var before *time.Time
+		msgs := make([]discordgo.Message, 0)
+		for hasMore {
+			pinned, err := common.BotSession.ChannelMessagesPinned(cID, 50, before)
+			if err != nil {
+				return 0, err
+			}
+			hasMore = pinned.HasMore
+			for _, item := range pinned.Items {
+				msgs = append(msgs, *item.Message)
+			}
+			before = &pinned.Items[len(pinned.Items)-1].PinnedAt
 		}
 
 		if pinCount {
-			return len(msg), nil
+			return len(msgs), nil
 		}
 
-		pinnedMessages := make([]discordgo.Message, 0, len(msg))
-		for _, m := range msg {
-			pinnedMessages = append(pinnedMessages, *m)
-		}
-
-		return pinnedMessages, nil
+		return msgs, nil
 	}
 }
 
