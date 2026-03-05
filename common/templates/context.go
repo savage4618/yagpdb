@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 	"unicode/utf8"
@@ -161,7 +162,53 @@ func RegisterSetupFunc(f ContextSetupFunc) {
 	contextSetupFuncs = append(contextSetupFuncs, f)
 }
 
+type TemplateCooldowns struct {
+	sync.RWMutex
+	cooldowns map[string]time.Time
+}
+
+func (tc *TemplateCooldowns) Set(key string, duration time.Duration) bool {
+	tc.Lock()
+	defer tc.Unlock()
+	t, ok := tc.cooldowns[key]
+	if !ok || time.Now().After(t) {
+		tc.cooldowns[key] = time.Now().Add(duration)
+		return false
+	}
+	return true
+}
+
+func (tc *TemplateCooldowns) gc(d time.Duration) {
+	ticker := time.NewTicker(d)
+	for range ticker.C {
+		tc.Tick()
+	}
+}
+
+func (tc *TemplateCooldowns) Tick() {
+	tc.Lock()
+	defer tc.Unlock()
+	var deleteCounter int
+	for k, v := range tc.cooldowns {
+		if time.Now().After(v) {
+			delete(tc.cooldowns, k)
+			deleteCounter++
+		}
+	}
+	if deleteCounter > 0 {
+		logger.Infof("deleted %d template cooldowns", deleteCounter)
+	}
+}
+
+var templateCooldownTracker *TemplateCooldowns
+
+func InitCooldownTracker() {
+	templateCooldownTracker = &TemplateCooldowns{cooldowns: make(map[string]time.Time)}
+	go templateCooldownTracker.gc(time.Minute)
+}
+
 func init() {
+	InitCooldownTracker()
 	RegisterSetupFunc(baseContextFuncs)
 	RegisterSetupFunc(interactionContextFuncs)
 
@@ -407,22 +454,30 @@ func (c *Context) executeParsed() (string, error) {
 	w := LimitWriter(&buf, 25000)
 
 	started := time.Now()
-	logger.WithFields(logrus.Fields{
-		"guild_id":      c.GS.ID,
-		"cc_id":         c.Data["CCID"],
-		"executed_from": c.ExecutedFrom,
-	}).Info("Template execution started")
-	err := parsed.Execute(w, c.Data)
 
-	defer func() {
-		dur := time.Since(started)
+	//log only if execution takes longer than 5 seconds
+	timer := time.AfterFunc(5*time.Second, func() {
 		logger.WithFields(logrus.Fields{
 			"guild_id":      c.GS.ID,
 			"executed_from": c.ExecutedFrom,
 			"cc_id":         c.Data["CCID"],
-			"success":       err == nil,
-			"duration":      dur,
-		}).Info("Template execution finished")
+		}).Warn("Template execution is taking longer than 5 seconds")
+	})
+
+	err := parsed.Execute(w, c.Data)
+
+	defer func() {
+		timer.Stop()
+		dur := time.Since(started)
+		if dur > 5*time.Second {
+			logger.WithFields(logrus.Fields{
+				"guild_id":      c.GS.ID,
+				"executed_from": c.ExecutedFrom,
+				"cc_id":         c.Data["CCID"],
+				"success":       err == nil,
+				"duration":      dur,
+			}).Warn("Long template execution finished")
+		}
 	}()
 
 	if c.FixedOutput != "" {
@@ -628,6 +683,11 @@ const (
 	sendMessageInteractionFollowup
 	sendMessageInteractionDeferred
 )
+
+// SetCooldown Sets a cooldown for a key, returns true if the key is already on cooldown
+func (c *Context) SetCooldown(key string, duration time.Duration) bool {
+	return templateCooldownTracker.Set(key, duration)
+}
 
 // IncreaseCheckCallCounter Returns true if key is above the limit
 func (c *Context) IncreaseCheckCallCounter(key string, limit int) bool {

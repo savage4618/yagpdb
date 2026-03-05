@@ -994,6 +994,11 @@ func tmplResultSetToLightDBEntries(ctx *templates.Context, gs *dstate.GuildSet, 
 		if common.ContainsInt64Slice(membersToFetch, v.UserID) {
 			continue
 		}
+		//don't check invalid snowflakes
+		idLen := len(fmt.Sprintf("%d", v.UserID))
+		if idLen < 16 {
+			continue
+		}
 
 		membersToFetch = append(membersToFetch, v.UserID)
 	}
@@ -1002,7 +1007,7 @@ func tmplResultSetToLightDBEntries(ctx *templates.Context, gs *dstate.GuildSet, 
 	if len(membersToFetch) == 1 {
 		member, err := bot.GetMember(gs.ID, membersToFetch[0])
 		if err != nil {
-			ctx.LogEntry().WithError(err).Error("[cc] failed retrieving member")
+			ctx.LogEntry().WithError(err).Errorf("[cc] failed retrieving member %d", membersToFetch[0])
 			return entries
 		}
 
