@@ -584,12 +584,42 @@ func (p *Plugin) CheckVideo(parsedVideo XMLFeed) error {
 
 	item := resp.Items[0]
 
+	if p.isCommunityPost(item) {
+		logger.Infof("Skipped Community Post for youtube channel %s: video_id: %s", channelID, videoID)
+		return nil
+	}
+
 	// This is a new video, post it
 	return p.postVideo(subs, parsedPublishedTime, item, channelID)
 }
 
+func (p *Plugin) isCommunityPost(video *youtube.Video) bool {
+	if video.Snippet.LiveBroadcastContent != "none" {
+		return false
+	}
+	if video.ContentDetails == nil {
+		logger.Errorf("contentDetails was nil for youtube video id %s, isLiveStream? %s", video.Id, video.Snippet.LiveBroadcastContent)
+		return false
+	}
+	videoDurationString := strings.ToLower(strings.TrimPrefix(video.ContentDetails.Duration, "PT"))
+	videoDuration, err := common.ParseDuration(videoDurationString)
+	if err != nil {
+		logger.WithError(err).WithField("videoId", video.Id).Error("Failed to parse video duration for community posts check")
+		return false
+	}
+
+	// videos below 20 seconds can be community posts
+	if videoDuration > (time.Second * 20) {
+		return false
+	}
+
+	isCommunityPost := p.isCommunityPostRedirect(video.Id)
+	logger.Infof("Video %s is a community post?: duration: %s, isCommunityPostRedirect: %t", video.Id, videoDurationString, isCommunityPost)
+	return isCommunityPost
+}
+
 func (p *Plugin) isShortsVideo(video *youtube.Video) bool {
-	if video.Snippet.LiveBroadcastContent == "live" {
+	if video.Snippet.LiveBroadcastContent != "none" {
 		return false
 	}
 	if video.ContentDetails == nil {
@@ -607,8 +637,33 @@ func (p *Plugin) isShortsVideo(video *youtube.Video) bool {
 		return false
 	}
 	isShort := p.isShortsRedirect(video.Id)
-	logger.Infof("Video %s is a shorts video?: %t", video.Id, isShort)
+	logger.Infof("Video %s is a shorts?: duration: %s, isShortRedirect: %t", video.Id, videoDurationString, isShort)
 	return isShort
+}
+
+func (p *Plugin) isCommunityPostRedirect(videoId string) bool {
+	videoLink := fmt.Sprintf("https://www.youtube.com/watch?v=%s", videoId)
+	client := &http.Client{
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	req, err := http.NewRequest("HEAD", videoLink, nil)
+	if err != nil {
+		logger.WithError(err).WithField("videoId", videoId).Error("Failed to make youtube post check request")
+		return false
+	}
+	req.Header.Add("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.79 Safari/537.36")
+	resp, err := client.Do(req)
+	if err != nil {
+		logger.WithError(err).WithField("videoId", videoId).Error("Failed to make community post check request")
+		return false
+	}
+
+	defer resp.Body.Close()
+	logger.WithField("videoId", videoId).Infof("Community Post Check: Got http status %d", resp.StatusCode)
+	return resp.StatusCode == 303 || resp.StatusCode == 301 || resp.StatusCode == 302
 }
 
 func (p *Plugin) isShortsRedirect(videoId string) bool {
@@ -621,13 +676,13 @@ func (p *Plugin) isShortsRedirect(videoId string) bool {
 
 	req, err := http.NewRequest("HEAD", shortsUrl, nil)
 	if err != nil {
-		logger.WithError(err).Error("Failed to make youtube shorts request")
+		logger.WithError(err).WithField("videoId", videoId).Error("Failed to make youtube shorts request")
 		return false
 	}
 	req.Header.Add("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/104.0.5112.79 Safari/537.36")
 	resp, err := client.Do(req)
 	if err != nil {
-		logger.WithError(err).Error("Failed to make youtube shorts request")
+		logger.WithError(err).WithField("videoId", videoId).Error("Failed to make youtube shorts request")
 		return false
 	}
 

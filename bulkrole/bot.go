@@ -33,6 +33,10 @@ func RedisKeyBulkRoleStatus(guildID int64) string {
 	return "bulkrole:" + discordgo.StrID(guildID) + ":status"
 }
 
+func RedisKeyBulkRoleCancelled(guildID int64) string {
+	return "bulkrole:" + discordgo.StrID(guildID) + ":cancelled"
+}
+
 func RedisKeyBulkRoleMembers(guildID int64) string {
 	return "bulkrole:" + discordgo.StrID(guildID) + ":members"
 }
@@ -60,22 +64,10 @@ func RedisKeyBulkRoleFinalized(guildID int64) string {
 	return "bulkrole:" + discordgo.StrID(guildID) + ":finalized"
 }
 
-func isRateLimitActive(guildID int64) bool {
-	var cooldownActive int
-	common.RedisPool.Do(radix.Cmd(&cooldownActive, "EXISTS", RedisKeyBulkRoleCooldown(guildID)))
-	return cooldownActive > 0
-}
-
 func getRemainingCooldown(guildID int64) int64 {
 	var ttl int64
 	common.RedisPool.Do(radix.Cmd(&ttl, "TTL", RedisKeyBulkRoleCooldown(guildID)))
 	return ttl
-}
-
-func isBulkRoleCancelled(guildID int64) bool {
-	var status int
-	common.RedisPool.Do(radix.Cmd(&status, "GET", RedisKeyBulkRoleStatus(guildID)))
-	return status == BulkRoleCancelled
 }
 
 // Handle guild member chunk for bulk role operations
@@ -105,22 +97,24 @@ func handleGuildChunk(evt *eventsystem.EventData) {
 func (config *BulkRoleConfig) processBulkRoleChunk(chunk *discordgo.GuildMembersChunk) {
 	if err := config.canBotAssignRole(); err != nil {
 		logger.WithError(err).WithField("guild", config.GuildID).Error("Bot lost permissions during bulk role operation, canceling")
-		config.forceOperationCompletion("Bot lost permissions during operation")
+		config.cancelBulkRoleOperation("Failed", "Bot lost permissions during operation")
 		return
 	}
-	// Local per-chunk counters to avoid races across concurrent chunk goroutines
-	chunkProcessed := 0
-	chunkResults := 0
+
+	if !IsBulkRoleOperationActive(config.GuildID) {
+		return
+	}
 
 	lastTimeStatusRefreshed := time.Now()
 
 	guildID := config.GuildID
+	session := bot.ShardManager.SessionForGuild(guildID)
 	for _, member := range chunk.Members {
-		if isBulkRoleCancelled(guildID) {
+		if !IsBulkRoleOperationActive(guildID) {
 			return
 		}
 
-		chunkProcessed++
+		common.RedisPool.Do(radix.Cmd(nil, "INCR", RedisKeyBulkRoleProcessed(guildID)))
 
 		if !config.filterMember(member) {
 			continue
@@ -143,9 +137,9 @@ func (config *BulkRoleConfig) processBulkRoleChunk(chunk *discordgo.GuildMembers
 		var err error
 		switch config.Operation {
 		case "assign":
-			err = bot.ShardManager.SessionForGuild(guildID).GuildMemberRoleAdd(guildID, member.User.ID, config.TargetRole)
+			err = session.GuildMemberRoleAdd(guildID, member.User.ID, config.TargetRole)
 		case "remove":
-			err = bot.ShardManager.SessionForGuild(guildID).GuildMemberRoleRemove(guildID, member.User.ID, config.TargetRole)
+			err = session.GuildMemberRoleRemove(guildID, member.User.ID, config.TargetRole)
 		}
 
 		if err != nil {
@@ -153,14 +147,14 @@ func (config *BulkRoleConfig) processBulkRoleChunk(chunk *discordgo.GuildMembers
 			continue
 		}
 
-		chunkResults++
+		common.RedisPool.Do(radix.Cmd(nil, "INCR", RedisKeyBulkRoleResults(guildID)))
 
 		// Rate limiting
 		time.Sleep(time.Millisecond * 100)
 
 		// Refresh status every 50 seconds to keep Redis keys alive
 		if time.Since(lastTimeStatusRefreshed) > time.Second*50 {
-			if isBulkRoleCancelled(guildID) {
+			if !IsBulkRoleOperationActive(guildID) {
 				return
 			}
 
@@ -170,38 +164,14 @@ func (config *BulkRoleConfig) processBulkRoleChunk(chunk *discordgo.GuildMembers
 				logger.WithError(err).Error("Failed refreshing bulk role iterating status")
 			}
 		}
-	}
 
-	if chunkProcessed > 0 {
-		common.RedisPool.Do(radix.Cmd(nil, "INCRBY", RedisKeyBulkRoleProcessed(guildID), strconv.Itoa(chunkProcessed)))
-	}
-	if chunkResults > 0 {
-		common.RedisPool.Do(radix.Cmd(nil, "INCRBY", RedisKeyBulkRoleResults(guildID), strconv.Itoa(chunkResults)))
 	}
 
 	var doneChunks int
 	common.RedisPool.Do(radix.Cmd(&doneChunks, "INCR", RedisKeyBulkRoleChunksProcessed(guildID)))
 
 	if doneChunks >= chunk.ChunkCount {
-		if isBulkRoleCancelled(guildID) {
-			return
-		}
-		err := common.RedisPool.Do(radix.Cmd(nil, "SETEX", RedisKeyBulkRoleStatus(guildID), "100", strconv.Itoa(BulkRoleIterationDone)))
-		if err != nil {
-			logger.WithError(err).Error("Failed marking bulk role iteration complete")
-		}
-		common.RedisPool.Do(radix.Cmd(nil, "SET", RedisKeyBulkRoleStatus(guildID), strconv.Itoa(BulkRoleCompleted)))
-		var finalProcessed, finalResults int
-		common.RedisPool.Do(radix.Cmd(&finalProcessed, "GET", RedisKeyBulkRoleProcessed(guildID)))
-		common.RedisPool.Do(radix.Cmd(&finalResults, "GET", RedisKeyBulkRoleResults(guildID)))
-		config.sendNotificationAlert("Completed", finalProcessed, finalResults, "")
-		common.RedisPool.Do(radix.Cmd(nil, "DEL",
-			RedisKeyBulkRoleStatus(guildID),
-			RedisKeyBulkRoleProcessed(guildID),
-			RedisKeyBulkRoleResults(guildID),
-			RedisKeyBulkRoleChunksProcessed(guildID)))
-
-		logger.WithField("guild", guildID).WithField("processed", finalProcessed).Info("Bulk role operation completed")
+		config.markBulkRoleOperationEnd("Completed", "Bulk Role operation completed")
 	} else {
 		logger.WithField("guild", guildID).WithField("doneChunks", doneChunks).WithField("chunkCount", chunk.ChunkCount).Debug("Processed chunk, waiting for more")
 	}
@@ -325,8 +295,8 @@ func (config *BulkRoleConfig) startBulkRoleOperation() error {
 	if isAnyBulkRoleOperationActive(guildID) {
 		return errors.New("A bulk role operation is already in progress (including autorole retroactive scan)")
 	}
-	if isRateLimitActive(guildID) {
-		remaining := getRemainingCooldown(guildID)
+	remaining := getRemainingCooldown(guildID)
+	if remaining > 0 {
 		return errors.Errorf("Rate limit active. Please wait %d seconds before starting another operation", remaining)
 	}
 
@@ -361,8 +331,7 @@ func (config *BulkRoleConfig) startBulkRoleOperation() error {
 	return nil
 }
 
-// forceOperationCompletion handles stuck operations by forcing them to complete
-func (config *BulkRoleConfig) forceOperationCompletion(errorMsg string) {
+func (config *BulkRoleConfig) markBulkRoleOperationEnd(status, msg string) {
 	guildID := config.GuildID
 
 	var setnx int
@@ -370,12 +339,10 @@ func (config *BulkRoleConfig) forceOperationCompletion(errorMsg string) {
 	if setnx == 0 {
 		return
 	}
-	common.RedisPool.Do(radix.Cmd(nil, "EXPIRE", RedisKeyBulkRoleFinalized(guildID), "600"))
-
-	config, err := GetBulkRoleConfig(guildID)
-	var processed int
-	if err == nil {
-		common.RedisPool.Do(radix.Cmd(&processed, "GET", RedisKeyBulkRoleProcessed(guildID)))
+	common.RedisPool.Do(radix.Cmd(nil, "EXPIRE", RedisKeyBulkRoleFinalized(guildID), "30"))
+	_, processed, results, err := config.getBulkRoleProgress()
+	if err != nil {
+		logger.WithField("guild", guildID).WithError(err).Error("Failed to get bulk role progress")
 	}
 
 	common.RedisPool.Do(radix.Cmd(nil, "SET", RedisKeyBulkRoleStatus(guildID), strconv.Itoa(BulkRoleCompleted)))
@@ -383,60 +350,39 @@ func (config *BulkRoleConfig) forceOperationCompletion(errorMsg string) {
 		RedisKeyBulkRoleStatus(guildID),
 		RedisKeyBulkRoleProcessed(guildID),
 		RedisKeyBulkRoleResults(guildID)))
-	if err == nil {
-		config.sendNotificationAlert("Failed", processed, 0, errorMsg)
-	}
 
-	logger.WithField("guild", guildID).Info("Bulk role operation force-completed due to timeout/stuck state")
+	config.sendNotificationAlert(status, processed, results, msg)
+	logger.WithField("guild", guildID).Info("Bulk role operation force-completed due to timeout/stuck/cancellation state")
 }
 
 // Cancel bulk role operation
-func (config *BulkRoleConfig) cancelBulkRoleOperation() error {
+func (config *BulkRoleConfig) cancelBulkRoleOperation(reason, msg string) error {
 	guildID := config.GuildID
 	if !IsBulkRoleOperationActive(guildID) {
 		return nil
 	}
 
-	// Finalize guard
-	var setnx int
-	common.RedisPool.Do(radix.Cmd(&setnx, "SETNX", RedisKeyBulkRoleFinalized(guildID), "1"))
-	if setnx == 0 {
-		return nil
-	}
-	common.RedisPool.Do(radix.Cmd(nil, "EXPIRE", RedisKeyBulkRoleFinalized(guildID), "600"))
-
 	// Set status to cancelled first so running chunks can detect it
+	common.RedisPool.Do(radix.Cmd(nil, "SETEX", RedisKeyBulkRoleCancelled(guildID), "30", "1"))
 	common.RedisPool.Do(radix.Cmd(nil, "SET", RedisKeyBulkRoleStatus(guildID), strconv.Itoa(BulkRoleCancelled)))
 
 	// Give running chunks a moment to detect the cancellation
-	time.Sleep(time.Millisecond * 100)
+	time.Sleep(time.Second * 1)
 
-	config, err := GetBulkRoleConfig(guildID)
-	if err == nil {
-		var processed int
-		common.RedisPool.Do(radix.Cmd(&processed, "GET", RedisKeyBulkRoleProcessed(guildID)))
-		config.sendNotificationAlert("Cancelled", processed, 0, "")
-	}
-
-	// Clean up all Redis keys
-	common.RedisPool.Do(radix.Cmd(nil, "DEL", RedisKeyBulkRoleStatus(guildID), RedisKeyBulkRoleMembers(guildID), RedisKeyBulkRoleProcessed(guildID), RedisKeyBulkRoleResults(guildID), RedisKeyBulkRoleChunksProcessed(guildID)))
-
+	config.markBulkRoleOperationEnd(reason, msg)
 	logger.WithField("guild", guildID).Info("Bulk role operation cancelled")
 	return nil
 }
 
 // Get bulk role operation status
-func (config *BulkRoleConfig) getBulkRoleStatus() (int, int, int, error) {
+func (config *BulkRoleConfig) getBulkRoleProgress() (int, int, int, error) {
 	var status, processed, results int
-
-	guildID := config.GuildID
-	err := common.RedisPool.Do(radix.Cmd(&status, "GET", RedisKeyBulkRoleStatus(guildID)))
+	err := common.RedisPool.Do(radix.Cmd(&status, "GET", RedisKeyBulkRoleStatus(config.GuildID)))
 	if err != nil {
 		return 0, 0, 0, err
 	}
-
-	common.RedisPool.Do(radix.Cmd(&processed, "GET", RedisKeyBulkRoleProcessed(guildID)))
-	common.RedisPool.Do(radix.Cmd(&results, "GET", RedisKeyBulkRoleResults(guildID)))
+	common.RedisPool.Do(radix.Cmd(&processed, "GET", RedisKeyBulkRoleProcessed(config.GuildID)))
+	common.RedisPool.Do(radix.Cmd(&results, "GET", RedisKeyBulkRoleResults(config.GuildID)))
 
 	return status, processed, results, nil
 }
@@ -612,6 +558,8 @@ func (config *BulkRoleConfig) sendNotificationAlert(status string, processedCoun
 			Value: errorMsg,
 		})
 	}
+
+	embed.Footer.Text = "Members Processed and Changes Made can be inaccurate because of discord rate limits."
 
 	messageContent := fmt.Sprintf("Alert for bulk role operation started by <@%d>", config.StartedBy)
 	msg := &discordgo.MessageSend{
