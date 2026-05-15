@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -109,8 +110,8 @@ var (
 
 		// message builders
 		"cembed":             CreateEmbed,
-		"complexMessage":     CreateMessageSend,
-		"complexMessageEdit": CreateMessageEdit,
+		"complexMessage":     CreateComplexMessage,
+		"complexMessageEdit": CreateComplexMessage,
 
 		// misc
 		"humanizeThousands": tmplHumanizeThousands,
@@ -260,32 +261,51 @@ type Context struct {
 }
 
 type ContextFrame struct {
-	CS *dstate.ChannelState
+	CS *dstate.ChannelState `json:"cs"`
 
-	MentionEveryone bool
-	MentionHere     bool
-	MentionRoles    []int64
+	MentionEveryone bool    `json:"mention_everyone"`
+	MentionHere     bool    `json:"mention_here"`
+	MentionRoles    []int64 `json:"mention_roles"`
 
-	DelResponse       bool
-	PublishResponse   bool
-	EphemeralResponse bool
+	DelResponse       bool `json:"del_response"`
+	PublishResponse   bool `json:"publish_response"`
+	EphemeralResponse bool `json:"ephemeral_response"`
 
-	DelResponseDelay         int
-	EmbedsToSend             []*discordgo.MessageEmbed
-	ComponentsToSend         []discordgo.TopLevelComponent
-	AddResponseReactionNames []string
+	DelResponseDelay         int                           `json:"del_response_delay"`
+	EmbedsToSend             []*discordgo.MessageEmbed     `json:"embeds_to_send"`
+	ComponentsToSend         []discordgo.TopLevelComponent `json:"components_to_send"`
+	AddResponseReactionNames []string                      `json:"add_response_reaction_names"`
 
-	isNestedTemplate bool
+	IsNestedTemplate bool `json:"is_nested_template"`
 	parsedTemplate   *template.Template
-	SendResponseInDM bool
+	SendResponseInDM bool `json:"send_response_in_dm"`
 
-	Interaction *CustomCommandInteraction
+	Interaction *CustomCommandInteraction `json:"interaction"`
 }
 
 type CustomCommandInteraction struct {
-	*discordgo.Interaction
-	RespondedTo bool
-	Deferred    bool
+	*discordgo.Interaction `json:"interaction"`
+	RespondedTo            bool `json:"responded_to"`
+	Deferred               bool `json:"deferred"`
+}
+
+func (c *CustomCommandInteraction) UnmarshalJSON(data []byte) error {
+	var aux struct {
+		Interaction *discordgo.Interaction `json:"interaction"`
+		RespondedTo bool                   `json:"responded_to"`
+		Deferred    bool                   `json:"deferred"`
+	}
+
+	err := json.Unmarshal(data, &aux)
+	if err != nil {
+		return err
+	}
+
+	c.Interaction = aux.Interaction
+	c.RespondedTo = aux.RespondedTo
+	c.Deferred = aux.Deferred
+
+	return nil
 }
 
 func NewContext(gs *dstate.GuildSet, cs *dstate.ChannelState, ms *dstate.MemberState) *Context {
@@ -501,7 +521,7 @@ func (c *Context) newContextFrame(cs *dstate.ChannelState) *ContextFrame {
 	old := c.CurrentFrame
 	c.CurrentFrame = &ContextFrame{
 		CS:               cs,
-		isNestedTemplate: true,
+		IsNestedTemplate: true,
 	}
 
 	return old
@@ -628,14 +648,14 @@ func (c *Context) SendResponse(content string) (m *discordgo.Message, err error)
 			Content:         msgSend.Content,
 			Embeds:          msgSend.Embeds,
 			AllowedMentions: &msgSend.AllowedMentions,
-			Flags:           int64(msgSend.Flags),
+			Flags:           msgSend.Flags,
 		})
 	case sendMessageInteractionDeferred:
 		m, err = common.BotSession.EditOriginalInteractionResponse(common.BotApplication.ID, c.CurrentFrame.Interaction.Token, &discordgo.WebhookParams{
 			Content:         msgSend.Content,
 			Embeds:          msgSend.Embeds,
 			AllowedMentions: &msgSend.AllowedMentions,
-			Flags:           int64(msgSend.Flags),
+			Flags:           msgSend.Flags,
 		})
 		if err == nil {
 			c.CurrentFrame.Interaction.Deferred = false
@@ -744,7 +764,7 @@ func (c *Context) LogEntry() *logrus.Entry {
 }
 
 func (c *Context) addContextFunc(name string, f interface{}) {
-	if !common.ContainsStringSlice(c.DisabledContextFuncs, name) {
+	if !slices.Contains(c.DisabledContextFuncs, name) {
 		c.ContextFuncs[name] = f
 	}
 }

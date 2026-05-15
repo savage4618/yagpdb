@@ -7,6 +7,7 @@ import (
 	"math/rand"
 	"regexp"
 	"runtime/debug"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -83,7 +84,8 @@ type DelayedRunCCData struct {
 	Message *discordgo.Message
 	Member  *dstate.MemberState
 
-	UserKey interface{} `json:"user_key"`
+	UserKey      interface{}             `json:"user_key"`
+	CurrentFrame *templates.ContextFrame `json:"current_frame,omitempty"`
 
 	ExecutedFrom templates.ExecutedFromType `json:"executed_from"`
 }
@@ -103,7 +105,7 @@ var cmdEvalCommand = &commands.YAGCommand{
 
 		writeRoles := common.GetCoreServerConfCached(data.GuildData.GS.ID).AllowedWriteRoles
 		for _, r := range data.GuildData.MS.Member.Roles {
-			if common.ContainsInt64Slice(writeRoles, r) {
+			if slices.Contains(writeRoles, r) {
 				hasCoreWriteRole = true
 				break
 			}

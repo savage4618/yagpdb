@@ -206,6 +206,7 @@ type cachedGuildInvites struct {
 }
 
 func (c *cachedGuildInvites) gc(d time.Duration) {
+	logger.Info("Init worker for invite cache GC")
 	ticker := time.NewTicker(d)
 	for range ticker.C {
 		c.tick(d)
@@ -244,14 +245,6 @@ func (c *cachedGuildInvites) set(guildID int64, invites map[string]bool) {
 }
 
 var invitesCache cachedGuildInvites
-
-func init() {
-	invitesCache = cachedGuildInvites{guilds: make(map[int64]GuildInvites)}
-	go invitesCache.gc(invitesCacheDuration * time.Minute)
-}
-
-// invitesCacheDuration is the period between ticks for the invitesCache gc in minutes
-const invitesCacheDuration = 60
 
 func CheckMessageForBadInvites(msg *discordgo.Message) (containsBadInvites bool) {
 	guildID := msg.GuildID

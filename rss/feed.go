@@ -30,6 +30,7 @@ import (
 const (
 	PollInterval       = time.Minute * 5
 	maxConcurrentFeeds = 10
+	feedFetchTimeout   = 30 * time.Second
 )
 
 var logger = common.GetPluginLogger(&Plugin{})
@@ -160,18 +161,21 @@ func cleanupOldItems(feedID int) error {
 
 func getFeed(sub *models.RSSFeedSubscription, attempt int) (*gofeed.Feed, error) {
 	parser := gofeed.NewParser()
+	httpClient := &http.Client{Timeout: feedFetchTimeout}
 	//use an http proxy if configured
 	proxy := common.ConfHttpProxy.GetString()
 	if len(proxy) > 0 {
 		proxyURL, err := url.Parse(proxy)
-		if err != nil {
-			parser.Client = &http.Client{
-				Transport: &http.Transport{
-					Proxy: http.ProxyURL(proxyURL),
-				},
+		if err == nil {
+			httpClient.Transport = &http.Transport{
+				Proxy: http.ProxyURL(proxyURL),
 			}
+		} else {
+			logger.WithError(err).WithField("proxy", proxy).Warn("Invalid HTTP proxy configured for RSS fetcher, falling back to direct fetch")
 		}
 	}
+	parser.Client = httpClient
+
 	feed, err := parser.ParseURL(sub.FeedURL)
 	if err != nil {
 		logger.WithError(err).WithField("url", sub.FeedURL).Warnf("Failed to parse RSS feed, retrying attempt %d", attempt+1)

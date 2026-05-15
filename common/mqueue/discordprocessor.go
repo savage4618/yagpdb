@@ -1,6 +1,7 @@
 package mqueue
 
 import (
+	"slices"
 	"time"
 
 	"emperror.dev/errors"
@@ -81,7 +82,7 @@ var disableOnError = []int{
 
 func maybeDisableFeed(source PluginWithSourceDisabler, elem *QueuedElement, err *discordgo.RESTError) {
 	l := logger.WithError(err).WithField("source", elem.Source).WithField("sourceid", elem.SourceItemID).WithField("guild_id", elem.GuildID)
-	if err.Message == nil || !common.ContainsIntSlice(disableOnError, err.Message.Code) {
+	if err.Message == nil || !slices.Contains(disableOnError, err.Message.Code) {
 		l.Error("error sending mqueue message")
 		return
 	}
@@ -163,7 +164,7 @@ func trySendWebhook(l *logrus.Entry, elem *QueuedElement) (err error) {
 			AvatarURL:       avatar,
 			Embeds:          elem.MessageSend.Embeds,
 			Components:      elem.MessageSend.Components,
-			Flags:           int64(elem.MessageSend.Flags),
+			Flags:           elem.MessageSend.Flags,
 			AllowedMentions: &elem.MessageSend.AllowedMentions,
 		}
 		_, err = webhookSession.WebhookExecuteComplex(wh.ID, wh.Token, true, params)

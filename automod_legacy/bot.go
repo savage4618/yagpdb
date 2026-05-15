@@ -30,6 +30,9 @@ func (p *Plugin) BotInit() {
 
 	pubsub.AddHandler("update_automod_legacy_rules", HandleUpdateAutomodRules, nil)
 	confCache = ccache.New(ccache.Configure().MaxSize(1000))
+
+	invitesCache = cachedGuildInvites{guilds: make(map[int64]GuildInvites)}
+	go invitesCache.gc(60 * time.Minute)
 }
 
 // Invalidate the cache when the rules have changed
