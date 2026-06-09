@@ -12,6 +12,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/commands"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dcmd"
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
+	"github.com/botlabs-gg/yagpdb/v2/stdcommands/collegeteams"
 )
 
 var Command = &commands.YAGCommand{
@@ -20,7 +21,7 @@ var Command = &commands.YAGCommand{
 	Aliases:     []string{"bbscore", "yobitchwhatsthescoreofthebasketballgame"},
 	Description: "College Basketball Scores",
 	Arguments: []*dcmd.ArgDef{
-		{Name: "Team", Type: dcmd.String},
+		{Name: "Team", Type: dcmd.String, Help: "Team name", AutocompleteFunc: collegeteams.Autocomplete},
 	},
 	SlashCommandEnabled: true,
 	DefaultEnabled:      true,
