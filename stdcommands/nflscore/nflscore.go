@@ -35,6 +35,10 @@ var Command = &commands.YAGCommand{
 			return nil, err
 		}
 
+		if len(output.Team.NextEvent) == 0 {
+			return nil, commands.NewPublicError("No upcoming games found for that team. The season may be over or not yet scheduled.")
+		}
+
 		eventID := output.Team.NextEvent[0].Id
 		addrScore := "http://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard/" + eventID
 
