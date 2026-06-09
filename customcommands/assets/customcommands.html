@@ -139,6 +139,7 @@
                             value="{{if .CurrentCommandGroup}}{{.CurrentCommandGroup.ID}}{{end}}">
                         <button type="submit" class="btn btn-block btn-success" {{if ge .CCCount .CCLimit}}disabled{{end}}>Create
                             a new Custom Command</button>
+                        {{template "cp_premium_at_limit_link" (dict "IsGuildPremium" .IsGuildPremium "Count" .CCCount "FreeLimit" .FreeLimit "PremiumLimit" .PremiumLimit "Name" "Custom Commands")}}
                     </form>
                     
                 </div>

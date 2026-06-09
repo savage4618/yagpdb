@@ -87,7 +87,8 @@
                     {{checkbox "PublishLivestream" "new-publish-livestream" `Publish Livestreams` true}}
                     {{checkbox "PublishShorts" "new-publish-shorts" `Publish Shorts` true}}
 
-                    <button type="submit" id="yt-add-btn" disabled="true" class="btn btn-success">Add</button>
+                    <button type="submit" id="yt-add-btn" disabled="true" class="btn btn-success btn-block" {{if and (not .IsGuildPremium) (ge (len .Subs) .FreeLimit)}}data-at-limit="1"{{end}}>Add</button>
+                    {{template "cp_premium_at_limit_link" (dict "IsGuildPremium" .IsGuildPremium "Count" (len .Subs) "FreeLimit" .FreeLimit "PremiumLimit" .PremiumLimit "Name" "Youtube Feeds")}}
                 </form>
             </div>
         </div>
@@ -102,7 +103,8 @@
                         
                         <label>YouTube Announcement Message (<span class="yt-announcement-length-counter">{{toRune .Announcement.Message|len}}</span>/5000)</label>
 
-                        <textarea class="form-control" rows="10" id="yt-announcement-msg" name="Message" oninput="OnAnnouncementChange(this)">{{.Announcement.Message}}</textarea>
+                        {{template "codemirror_toggle"}}
+                        <textarea class="form-control template-editor" rows="10" id="yt-announcement-msg" name="Message" oninput="OnAnnouncementChange(this)">{{.Announcement.Message}}</textarea>
                         <span style="display: block;">
                           <button type="submit" id="yt-save-announcement-btn" class="btn btn-sm btn-success btn-block" data-async-form-alertsonly>Save</button>
                         </span>
@@ -206,6 +208,11 @@
         let addButton = $("#yt-add-btn")
 
         ytUrlInput.on("input", function(arg) {
+            // Stay disabled when the server has hit the free feed limit
+            if (addButton.attr("data-at-limit")) {
+                addButton.attr("disabled", true)
+                return
+            }
             let ytUrl = ytUrlInput.val()
             let ytLinkRegex = new RegExp("^(https?:\/\/)?((www|m)\.)?youtube\.com", 'g')
             let ytShortLinkRegex = new RegExp("^(https?:\/\/)?youtu\.be\/([a-zA-Z0-9_-]+).*", 'g')
@@ -286,4 +293,5 @@
     var announcementCheckbox = document.getElementById('yt-announcement-enabled');
     announcementCheckbox.addEventListener('change', (event) => { DisableMentions(); });
 </script>
+{{template "codemirror_assets" .}}
 {{template "cp_footer" .}} {{end}}
