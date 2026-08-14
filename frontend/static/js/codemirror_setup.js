@@ -93,7 +93,7 @@
 
         $(document).on('shown.bs.tab', function (e) {
             var href = $(e.target).attr('href');
-            if (!href) return;
+            if (!href || href.charAt(0) !== '#') return;
             $(href).find('.CodeMirror').each(function () {
                 if (this.CodeMirror) {
                     this.CodeMirror.refresh();

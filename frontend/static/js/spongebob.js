@@ -112,13 +112,13 @@ function navigate(url, method, data, updateHistory, maintainScroll, alertsOnly, 
 			console.log("Sent pageview")
 		}
 
-		if (cb)
-			cb(success);
-
 		if (maintainScroll)
 			document.documentElement.scrollTop = scrollBeforeNav;
 
 		$("#loading-overlay").addClass("hidden");
+
+		if (cb)
+			cb(success);
 	});
 
 	req.addEventListener("error", function () {
@@ -559,11 +559,14 @@ function submitForm(form, url, alertsOnly) {
 		alertsOnly = form.attr("data-async-form-alertsonly") !== undefined;
 	}
 
-	// Keep the current tab selected
+	// Keep the current tab selected.
 	var currentTab = null
 	var tabElements = $(".tabs");
 	if (tabElements.length > 0) {
-		currentTab = $(".tabs a.active").attr("href")
+		var activeHref = $(".tabs a.active").attr("href")
+		if (activeHref && activeHref.charAt(0) === "#") {
+			currentTab = activeHref
+		}
 	}
 
 	navigate(url, "POST", serialized, false, true, alertsOnly, function () {

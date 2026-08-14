@@ -53,7 +53,14 @@ func BotCachedGetCommandsWithSlashTrigger(guildID int64, ctx context.Context) ([
 // handleInteractionCreate for InteractionApplicationCommand interactions.
 func handleSlashCommandInteraction(evt *eventsystem.EventData, cs *dstate.ChannelState, interaction *templates.CustomCommandInteraction) {
 	data := interaction.DataCommand
-	if data == nil || interaction.Member == nil {
+	if data == nil || data.GuildID == 0 || interaction.Member == nil {
+		return
+	}
+
+	// USER (2) and MESSAGE (3) application commands are context menu commands and are
+	// handled separately; everything else is a slash (CHAT_INPUT) command.
+	if data.CommandType == discordgo.UserApplicationCommand || data.CommandType == discordgo.MessageApplicationCommand {
+		handleContextMenuInteraction(evt, cs, interaction)
 		return
 	}
 
@@ -346,6 +353,11 @@ func resyncGuildSlashCommands(guildID int64) {
 	for _, cc := range cmds {
 		set = append(set, buildSlashCommandRequest(cc))
 	}
+
+	// Context menu (USER/MESSAGE) commands are also guild application commands and must
+	// be part of the same bulk overwrite, otherwise they'd clobber the slash commands
+	// (and vice-versa). They use a separate per-type limit.
+	set = append(set, buildGuildContextMenuRequests(guildID)...)
 
 	// Skip the (rate-limited) overwrite if the resulting command set is unchanged.
 	serialized, _ := json.Marshal(set)
