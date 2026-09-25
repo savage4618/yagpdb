@@ -15,13 +15,18 @@ import (
 )
 
 var Command = &commands.YAGCommand{
-	Cooldown:    5,
-	CmdCategory: commands.CategoryDebug,
-	Name:        "Yagstatus",
-	Aliases:     []string{"status"},
-	Description: "Shows yagpdb status, version, uptime, memory stats, and so on",
-	RunInDM:     true,
-	RunFunc:     cmdFuncYagStatus,
+	Cooldown:            5,
+	CmdCategory:         commands.CategoryDebug,
+	Name:                "Status",
+	Aliases:             []string{"yagstatus"},
+	LegacyOverrideNames: []string{"yagstatus"},
+	Description:         "Shows yagpdb status, version, uptime, memory stats, and so on",
+	RunInDM:             true,
+
+	DefaultEnabled:      true,
+	SlashCommandEnabled: true,
+
+	RunFunc: cmdFuncYagStatus,
 }
 
 var logger = common.GetFixedPrefixLogger("yagstatuc_cmd")

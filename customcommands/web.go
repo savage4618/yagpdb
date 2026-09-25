@@ -140,7 +140,7 @@ func (p *Plugin) InitWeb() {
 	subMux.Handle(pat.Post("/commands/new"), newCommandHandler)
 	subMux.Handle(pat.Post("/commands/:cmd/update"), web.ControllerPostHandler(handleUpdateCommand, getCmdHandler, CustomCommand{}))
 	subMux.Handle(pat.Post("/commands/:cmd/delete"), web.ControllerPostHandler(handleDeleteCommand, getHandler, nil))
-	subMux.Handle(pat.Post("/commands/:cmd/run_now"), web.ControllerPostHandler(handleRunCommandNow, getCmdHandler, nil))
+	subMux.Handle(pat.Post("/commands/:cmd/run_now"), web.ControllerPostHandler(handleRunCommandNow, getHandler, nil))
 	subMux.Handle(pat.Post("/commands/:cmd/update_and_run"), web.ControllerPostHandler(handleUpdateAndRunNow, getCmdHandler, CustomCommand{}))
 	subMux.Handle(pat.Post("/commands/import/:cmd"), PublicCommandMW(newCommandHandler))
 
@@ -368,6 +368,9 @@ func serveGroupSelected(r *http.Request, templateData web.TemplateData, groupID 
 		return templateData, err
 	}
 	templateData["SlashCommandLimitReached"] = slashCount >= MaxSlashCommandCCs
+
+	templateData["MaxSlashSubcommands"] = MaxSubCommandForContext(guildID)
+	templateData["MaxSlashSubcommandsPremium"] = MaxSubCommandCCsPremium
 
 	// Same, for the free-tier per-type context menu command limits.
 	userContextMenuCount, err := models.CustomCommands(qm.Where("guild_id = ? AND trigger_type = ? AND disabled = false", guildID, int(CommandTriggerUserContextMenu))).CountG(r.Context())

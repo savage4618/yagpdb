@@ -3,6 +3,7 @@ package common
 import (
 	"strconv"
 	"strings"
+	"time"
 
 	"emperror.dev/errors"
 	"github.com/botlabs-gg/yagpdb/v2/common/config"
@@ -23,6 +24,9 @@ var (
 	ConfPQPassword = config.RegisterOption("yagpdb.pqpassword", "Postgres passoword", "")
 	ConfPQDB       = config.RegisterOption("yagpdb.pqdb", "Postgres database", "yagpdb")
 
+	ConfDisablePrefixCommands       = config.RegisterOption("yagpdb.disable_prefix_commands", "Disables running built-in commands through the command prefix, leaving the bot mention and discord's slash commands as the only way to run them. Custom commands are unaffected", false)
+	ConfEnablePrefixCommandsWarning = config.RegisterOption("yagpdb.enable_prefix_commands_warning", "Shows the prefix command deprecation notice, both on the dashboard and in discord. Independent of yagpdb.disable_prefix_commands, which only decides the wording", false)
+
 	ConfMaxCCR            = config.RegisterOption("yagpdb.max_ccr", "Maximum number of concurrent outgoing requests to discord", 25)
 	ConfDisableKeepalives = config.RegisterOption("yagpdb.disable_keepalives", "Disables keepalive connections for outgoing requests to discord, this shouldn't be needed but i had networking issues once so i had to", false)
 
@@ -40,7 +44,36 @@ var (
 	BotOwners []int64
 )
 
+var PrefixCommandsShutdownDate = time.Date(2026, time.September, 15, 0, 0, 0, 0, time.UTC)
+
+func PrefixCommandsDisabled() bool {
+	return ConfDisablePrefixCommands.GetBool()
+}
+
+func ShowPrefixCommandsWarning() bool {
+	return ConfEnablePrefixCommandsWarning.GetBool()
+}
+
 var configLoaded = false
+
+// LoadConfigForDocs loads configuration from the environment only. Generating
+// docs needs the registered options and command definitions, not a reachable
+// redis, database or discord account, so the redis source and the checks for
+// required deployment values are both skipped.
+// RunningDocGen reports that the process was started only to print docs, so
+// plugins must not reach for redis, the database or discord while registering.
+var RunningDocGen bool
+
+func LoadConfigForDocs() {
+	if configLoaded {
+		return
+	}
+
+	configLoaded = true
+
+	config.AddSource(&config.EnvSource{})
+	config.Load()
+}
 
 func LoadConfig() (err error) {
 	if configLoaded {
@@ -72,8 +105,8 @@ func LoadConfig() (err error) {
 	}
 
 	ownersStr := confOwners.GetString()
-	split := strings.Split(ownersStr, ",")
-	for _, o := range split {
+	split := strings.SplitSeq(ownersStr, ",")
+	for o := range split {
 		parsed, _ := strconv.ParseInt(o, 10, 64)
 		if parsed != 0 {
 			BotOwners = append(BotOwners, parsed)

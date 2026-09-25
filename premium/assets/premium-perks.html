@@ -2,7 +2,7 @@
 {{template "cp_head" .}}
 
 <style>
-    /* Page only links out — hide the manage-server sidebar and toggle */
+    /* Page only links out - hide the manage-server sidebar and toggle */
     #sidebar-left { display: none !important; }
     #main-content.content-body { margin-left: 0 !important; }
 
@@ -43,7 +43,7 @@
         font-weight: 700;
     }
 
-    /* Pricing card headers — distinct per source */
+    /* Pricing card headers - distinct per source */
     .pricing-discord .card-header { background: #5865f2; color: #fff; border-bottom: none; }
     .pricing-patreon .card-header { background: #ff424d; color: #fff; border-bottom: none; }
     .pricing-discord .card-header h5,
@@ -188,7 +188,9 @@
     {{template "premium_limit_card" (dict "Icon" "fas fa-microphone"  "Name" "Voice roles"      "From" "1"    "To" "10")}}
     {{template "premium_limit_card" (dict "Icon" "fas fa-file-alt"    "Name" "CC length"        "From" "10k"  "To" "20k")}}
     {{template "premium_limit_card" (dict "Icon" "fas fa-user-tag"    "Name" "Role-change CCs"  "From" "1"    "To" "5")}}
-    {{template "premium_limit_card" (dict "Icon" "fas fa-slash"       "Name" "Slash-command CCs"  "From" "3"    "To" "10")}}
+    {{template "premium_limit_card" (dict "Icon" "fas fa-slash"       "Name" "Slash-command CCs"  "From" "10"   "To" "50")}}
+    {{template "premium_limit_card" (dict "Icon" "fas fa-sitemap"     "Name" "Subcommands / cmd"  "From" "10"   "To" "25")}}
+    {{template "premium_limit_card" (dict "Icon" "fas fa-mouse-pointer" "Name" "Context menu CCs" "From" "5"    "To" "15")}}
     {{template "premium_limit_card" (dict "Icon" "fas fa-layer-group" "Name" "CCs per trigger"  "From" "3"    "To" "5")}}
     {{template "premium_limit_card" (dict "Icon" "fas fa-medal"       "Name" "Reputation roles" "From" "5"    "To" "25")}}
     {{template "premium_limit_card" (dict "Icon" "fas fa-shield-alt"  "Name" "Automod rules"    "From" "25"   "To" "150")}}
@@ -209,7 +211,7 @@
             </div>
             <div class="card-body d-flex flex-column">
                 <ul class="list-unstyled mb-3">
-                    <li class="mb-2"><i class="fas fa-check text-success mr-2"></i>Quickest setup — billed through your Discord account</li>
+                    <li class="mb-2"><i class="fas fa-check text-success mr-2"></i>Quickest setup - billed through your Discord account</li>
                     <li class="mb-2"><i class="fas fa-check text-success mr-2"></i>Cancel anytime from Discord settings</li>
                 </ul>
                 <a href="https://discord.com/application-directory/{{.ClientID}}/store" target="_blank"

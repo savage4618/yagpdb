@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/botlabs-gg/yagpdb/v2/common"
 	"github.com/botlabs-gg/yagpdb/v2/common/config"
@@ -97,24 +98,37 @@ func (p *Plugin) DisableGuildFeeds(guildID int64) error {
 	return nil
 }
 
-func (p *Plugin) WebSubSubscribe(ytChannelID string) error {
+// http.DefaultClient has no timeout, and a stalled request otherwise pins a
+// resubscribe worker indefinitely.
+var websubClient = &http.Client{Timeout: time.Second * 30}
+
+func (p *Plugin) websubRequest(ytChannelID, mode string) error {
 	values := url.Values{
 		"hub.callback":     {"https://" + common.ConfHost.GetString() + "/yt_new_upload/" + confWebsubVerifytoken.GetString()},
 		"hub.topic":        {"https://www.youtube.com/xml/feeds/videos.xml?channel_id=" + ytChannelID},
 		"hub.verify":       {"sync"},
-		"hub.mode":         {"subscribe"},
+		"hub.mode":         {mode},
 		"hub.verify_token": {confWebsubVerifytoken.GetString()},
 	}
 
-	resp, err := http.PostForm(GoogleWebsubHub, values)
+	resp, err := websubClient.PostForm(GoogleWebsubHub, values)
 	if err != nil {
-		logger.WithError(err).Errorf("Failed to subscribe to youtube channel with id %s", ytChannelID)
 		return err
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		body, _ := io.ReadAll(resp.Body)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		return fmt.Errorf("bad status code: %d (%s) %s", resp.StatusCode, resp.Status, string(body))
+	}
+
+	return nil
+}
+
+func (p *Plugin) WebSubSubscribe(ytChannelID string) error {
+	if err := p.websubRequest(ytChannelID, "subscribe"); err != nil {
+		logger.WithError(err).Errorf("Failed to subscribe to youtube channel with id %s", ytChannelID)
+		return err
 	}
 
 	logger.Info("Websub: Subscribed to channel ", ytChannelID)
@@ -122,21 +136,8 @@ func (p *Plugin) WebSubSubscribe(ytChannelID string) error {
 }
 
 func (p *Plugin) WebSubUnsubscribe(ytChannelID string) error {
-	values := url.Values{
-		"hub.callback":     {"https://" + common.ConfHost.GetString() + "/yt_new_upload/" + confWebsubVerifytoken.GetString()},
-		"hub.topic":        {"https://www.youtube.com/xml/feeds/videos.xml?channel_id=" + ytChannelID},
-		"hub.verify":       {"sync"},
-		"hub.mode":         {"unsubscribe"},
-		"hub.verify_token": {confWebsubVerifytoken.GetString()},
-	}
-
-	resp, err := http.PostForm(GoogleWebsubHub, values)
-	if err != nil {
+	if err := p.websubRequest(ytChannelID, "unsubscribe"); err != nil {
 		return err
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("bad status code: %d (%s)", resp.StatusCode, resp.Status)
 	}
 
 	logger.Info("Websub: Unsubscribed from channel ", ytChannelID)

@@ -189,10 +189,17 @@ func (c *Container) FindCommand(searchStr string) (cmd *RegisteredCommand, rest 
 		return
 	}
 
+	var defaultCmd *RegisteredCommand
+
 	// Start looking for matches in all subcommands
 	for _, c := range c.Commands {
 		names := c.Trigger.Names
 		for _, name := range names {
+			if name == "" {
+				defaultCmd = c
+				continue
+			}
+
 			if !strings.EqualFold(name, split[0]) {
 				continue
 			}
@@ -203,6 +210,12 @@ func (c *Container) FindCommand(searchStr string) (cmd *RegisteredCommand, rest 
 
 			return
 		}
+	}
+
+	// Nothing matched the first word, so hand the whole thing to the subcommand
+	// registered under the empty name, if the container has one.
+	if defaultCmd != nil {
+		return defaultCmd, searchStr
 	}
 
 	// No command found
@@ -266,7 +279,7 @@ func (c *Container) AddCommand(cmd Cmd, trigger *Trigger) *RegisteredCommand {
 	return wrapped
 }
 
-func (c *Container) AddMidlewares(mw ...MiddleWareFunc) {
+func (c *Container) AddMiddlewares(mw ...MiddleWareFunc) {
 	c.middlewares = append(c.middlewares, mw...)
 }
 

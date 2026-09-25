@@ -148,6 +148,16 @@ type YAGCommand struct {
 	// then this returns the roles that CAN'T use the command
 	RolesRunFunc RolesRunFunc
 
+	// Names this command was registered under before a rename or a move into a
+	// container. Per command overrides saved against the old name keep applying.
+	// AddRootAliases fills this in automatically.
+	LegacyOverrideNames []string
+
+	// Set by AddContainerCommand. Overrides resolve against this rather than the
+	// chain the command was invoked through, so a command reachable both as
+	// "rep give" and as the root alias "giverep" resolves to one name.
+	containerName string
+
 	slashCommandID int64
 
 	IsResponseEphemeral bool
@@ -368,6 +378,10 @@ func (yc *YAGCommand) PostCommandExecuted(settings *CommandSettings, cmdData *dc
 		if err != nil {
 			logger.WithError(err).Error("failed sending command response")
 		}
+	}
+
+	if warning := warnPrefixCommandDeprecated(cmdData); warning != nil {
+		replies = append(replies, warning)
 	}
 
 	if settings.DelResponse {
@@ -780,27 +794,40 @@ func (yc *YAGCommand) GetSettingsWithLoadedOverrides(containerChain []*dcmd.Cont
 		}
 	}
 
-	cmdFullName := yc.Name
-	if len(containerChain) > 1 {
-		lastContainer := containerChain[len(containerChain)-1]
-		cmdFullName = lastContainer.Names[0] + " " + cmdFullName
-	}
+	names := yc.overrideNames(containerChain)
 
 	// Assign the global settings, if existing
 	if global != nil {
-		yc.fillSettings(cmdFullName, global, settings)
+		yc.fillSettings(names, global, settings)
 	}
 
 	// Assign the channel override, if existing
 	if channelOverride != nil {
-		yc.fillSettings(cmdFullName, channelOverride, settings)
+		yc.fillSettings(names, channelOverride, settings)
 	}
 
 	return
 }
 
+// overrideNames returns the names a per command override may be saved under,
+// current name first.
+func (yc *YAGCommand) overrideNames(containerChain []*dcmd.Container) []string {
+	names := make([]string, 0, 2+len(yc.LegacyOverrideNames))
+
+	switch {
+	case yc.containerName != "":
+		names = append(names, yc.containerName+" "+yc.Name, yc.Name)
+	case len(containerChain) > 1:
+		names = append(names, containerChain[len(containerChain)-1].Names[0]+" "+yc.Name)
+	default:
+		names = append(names, yc.Name)
+	}
+
+	return append(names, yc.LegacyOverrideNames...)
+}
+
 // Fills the command settings from a channel override, and if a matching command override is found, the command override
-func (cs *YAGCommand) fillSettings(cmdFullName string, override *models.CommandsChannelsOverride, settings *CommandSettings) {
+func (cs *YAGCommand) fillSettings(names []string, override *models.CommandsChannelsOverride, settings *CommandSettings) {
 	settings.Enabled = override.CommandsEnabled
 	settings.AlwaysEphemeral = override.AlwaysEphemeral
 
@@ -812,23 +839,24 @@ func (cs *YAGCommand) fillSettings(cmdFullName string, override *models.Commands
 	settings.DelResponseDelay = override.AutodeleteResponseDelay
 	settings.DelTriggerDelay = override.AutodeleteTriggerDelay
 
-OUTER:
-	for _, cmdOverride := range override.R.CommandsCommandOverrides {
-		for _, cmd := range cmdOverride.Commands {
-			if strings.EqualFold(cmd, cmdFullName) {
-				settings.Enabled = cmdOverride.CommandsEnabled
-				settings.AlwaysEphemeral = cmdOverride.AlwaysEphemeral
-
-				settings.IgnoreRoles = cmdOverride.IgnoreRoles
-				settings.RequiredRoles = cmdOverride.RequireRoles
-
-				settings.DelResponse = cmdOverride.AutodeleteResponse
-				settings.DelTrigger = cmdOverride.AutodeleteTrigger
-				settings.DelResponseDelay = cmdOverride.AutodeleteResponseDelay
-				settings.DelTriggerDelay = cmdOverride.AutodeleteTriggerDelay
-
-				break OUTER
+	for _, name := range names {
+		for _, cmdOverride := range override.R.CommandsCommandOverrides {
+			if !common.ContainsStringSliceFold(cmdOverride.Commands, name) {
+				continue
 			}
+
+			settings.Enabled = cmdOverride.CommandsEnabled
+			settings.AlwaysEphemeral = cmdOverride.AlwaysEphemeral
+
+			settings.IgnoreRoles = cmdOverride.IgnoreRoles
+			settings.RequiredRoles = cmdOverride.RequireRoles
+
+			settings.DelResponse = cmdOverride.AutodeleteResponse
+			settings.DelTrigger = cmdOverride.AutodeleteTrigger
+			settings.DelResponseDelay = cmdOverride.AutodeleteResponseDelay
+			settings.DelTriggerDelay = cmdOverride.AutodeleteTriggerDelay
+
+			return
 		}
 	}
 }
@@ -939,9 +967,28 @@ func (yc *YAGCommand) Logger(data *dcmd.Data) *logrus.Entry {
 	return l
 }
 
+// CanonicalName reports the path this command is invoked by. Commands moved into
+// a container keep root level aliases for backwards compatibility, and those
+// aliases have no slash command of their own, so help must name the container
+// form or it cannot resolve a command mention.
+func (yc *YAGCommand) CanonicalName() string {
+	// Empty means "no opinion": help then uses the container the command was
+	// found in, which is correct for everything registered straight into a
+	// container rather than moved with AddContainerCommand.
+	if yc.containerName == "" {
+		return ""
+	}
+
+	return yc.containerName + " " + yc.Name
+}
+
 func (yc *YAGCommand) GetTrigger() *dcmd.Trigger {
 	trigger := dcmd.NewTrigger(yc.Name, yc.Aliases...).SetEnableInDM(yc.RunInDM).SetEnableInGuildChannels(true)
-	trigger = trigger.SetHideFromHelp(yc.HideFromHelp)
+	// A command kept off the commands page is not one users are meant to browse,
+	// so it stays out of the help listing, but "help <name>" still explains it.
+	// HideFromHelp is the stronger form and hides it from both.
+	trigger = trigger.SetHideFromHelp(yc.HideFromHelp || yc.HideFromCommandsPage)
+	trigger = trigger.SetHideFromTargettedHelp(yc.HideFromHelp)
 	if len(yc.Middlewares) > 0 {
 		trigger = trigger.SetMiddlewares(yc.Middlewares...)
 	}

@@ -13,9 +13,11 @@ var Command = &commands.YAGCommand{
 	Name:                "CustomEmbed",
 	Aliases:             []string{"ce"},
 	Description:         "Creates an embed from what you give it in json form: https://help.yagpdb.xyz/docs/reference/custom-embeds/",
-	LongDescription:     "Example: `-ce {\"title\": \"hello\", \"description\": \"wew\"}`",
+	LongDescription:     "Example: `/customembed {\"title\": \"hello\", \"description\": \"wew\"}`",
 	RequiredArgs:        1,
 	RequireDiscordPerms: []int64{discordgo.PermissionManageMessages},
+	SlashCommandEnabled: true,
+	DefaultEnabled:      true,
 	Arguments: []*dcmd.ArgDef{
 		{Name: "Json", Type: dcmd.String},
 	},

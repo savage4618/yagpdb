@@ -16,6 +16,9 @@ type System struct {
 	Prefix         PrefixProvider
 	ResponseSender ResponseSender
 	State          dstate.StateTracker
+
+	// Mentions, direct messages and slash commands are unaffected.
+	DisablePrefixTrigger bool
 }
 
 func NewStandardSystem(staticPrefix string) (system *System) {
@@ -27,7 +30,7 @@ func NewStandardSystem(staticPrefix string) (system *System) {
 		sys.Prefix = NewSimplePrefixProvider(staticPrefix)
 	}
 
-	sys.Root.AddMidlewares(ArgParserMW)
+	sys.Root.AddMiddlewares(ArgParserMW)
 
 	return sys
 }
@@ -108,6 +111,10 @@ func (sys *System) FindPrefix(data *Data) (found bool) {
 		return true
 	}
 
+	if sys.DisablePrefixTrigger {
+		return false
+	}
+
 	// Check for custom prefix
 	if sys.Prefix == nil {
 		return false
@@ -140,6 +147,10 @@ func (sys *System) FindPrefixWithPrefetched(data *Data, commandPrefix string) (f
 
 	if sys.FindMentionPrefix(data) {
 		return true
+	}
+
+	if sys.DisablePrefixTrigger || commandPrefix == "" {
+		return false
 	}
 
 	data.TraditionalTriggerData.PrefixUsed = commandPrefix

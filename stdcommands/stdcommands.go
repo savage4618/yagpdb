@@ -1,10 +1,9 @@
 package stdcommands
 
 import (
-	"github.com/botlabs-gg/yagpdb/v2/bot"
-	"github.com/botlabs-gg/yagpdb/v2/bot/eventsystem"
 	"github.com/botlabs-gg/yagpdb/v2/commands"
 	"github.com/botlabs-gg/yagpdb/v2/common"
+	"github.com/botlabs-gg/yagpdb/v2/lib/dstate"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/advice"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/allocstat"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/banserver"
@@ -28,7 +27,6 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/forex"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/globalrl"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/guildunavailable"
-	"github.com/botlabs-gg/yagpdb/v2/stdcommands/howlongtobeat"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/info"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/inspire"
 	"github.com/botlabs-gg/yagpdb/v2/stdcommands/invite"
@@ -65,7 +63,6 @@ import (
 )
 
 var (
-	_ bot.BotInitHandler       = (*Plugin)(nil)
 	_ commands.CommandProvider = (*Plugin)(nil)
 )
 
@@ -86,8 +83,6 @@ func (p *Plugin) AddCommands() {
 		invite.Command,
 
 		// Standard
-		define.Command,
-		weather.Command,
 		calc.Command,
 		topic.Command,
 		catfact.Command,
@@ -97,14 +92,11 @@ func (p *Plugin) AddCommands() {
 		dogfact.Command,
 		advice.Command,
 		ping.Command,
-		throw.Command,
-		roll.Command,
 		customembed.Command,
 		simpleembed.Command,
 		currenttime.Command,
 		listroles.Command,
 		memstats.Command,
-		wouldyourather.Command,
 		poll.Command,
 		undelete.Command,
 		viewperms.Command,
@@ -129,8 +121,6 @@ func (p *Plugin) AddCommands() {
 		topservers.Command,
 		topcommands.Command,
 		topevents.Command,
-		currentshard.Command,
-		guildunavailable.Command,
 		yagstatus.Command,
 		setstatus.Command,
 		createinvite.Command,
@@ -144,11 +134,51 @@ func (p *Plugin) AddCommands() {
 	)
 
 	statedbg.Commands()
-	commands.AddRootCommands(p, dictionary.Command)
+	guildCommands(p)
+	funCommands(p)
 }
 
-func (p *Plugin) BotInit() {
-	eventsystem.AddHandlerAsyncLastLegacy(p, ping.HandleMessageCreate, eventsystem.EventMessageCreate)
+var funCommandList = []*commands.YAGCommand{
+	eightball.Command, advice.Command, catfact.Command, dadjoke.Command,
+	dogfact.Command, define.Command, dictionary.Command, forex.Command,
+	inspire.Command, roast.Command, roll.Command,
+	throw.Command, topic.Command, weather.Command, wouldyourather.Command,
+	xkcd.Command,
+}
+
+func funCommands(p *Plugin) {
+	container, _ := commands.CommandSystem.Root.Sub("fun")
+	container.Description = "Fun and lookup commands"
+
+	for _, cmd := range funCommandList {
+		// the container owns the slash surface for these now
+		cmd.SlashCommandEnabled = false
+
+		legacy := append([]string{cmd.Name}, cmd.Aliases...)
+		commands.AddContainerCommand(container, cmd)
+		commands.AddRootAliases(p, cmd, legacy...)
+	}
+
+	commands.RegisterSlashCommandsContainer(container, true, func(gs *dstate.GuildSet) ([]int64, error) {
+		return nil, nil
+	})
+}
+
+func guildCommands(p *Plugin) {
+	container, _ := commands.CommandSystem.Root.Sub("guild")
+	container.Description = "Guild utilities"
+
+	for _, cmd := range []*commands.YAGCommand{currentshard.Command, guildunavailable.Command} {
+		cmd.Plugin = p
+		commands.AddContainerCommand(container, cmd)
+	}
+
+	commands.RegisterSlashCommandsContainer(container, true, func(gs *dstate.GuildSet) ([]int64, error) {
+		return nil, nil
+	})
+
+	commands.AddRootAliases(p, currentshard.Command, "cshard", "currentshard")
+	commands.AddRootAliases(p, guildunavailable.Command, "isguildunavailable")
 }
 
 func RegisterPlugin() {
