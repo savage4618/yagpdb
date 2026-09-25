@@ -102,7 +102,6 @@ func (p *Plugin) AddCommands() {
 		viewperms.Command,
 		topgames.Command,
 		xkcd.Command,
-		howlongtobeat.Command,
 		inspire.Command,
 		forex.Command,
 		roast.Command,
