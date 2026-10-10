@@ -73,7 +73,7 @@ func InitCommands() {
 		ResponseSender: &dcmd.StdResponseSender{LogErrors: true},
 		Prefix:         &Plugin{},
 
-		DisablePrefixTrigger: common.ConfDisablePrefixCommands.GetBool(),
+		DisablePrefixTrigger: common.PrefixCommandsDisabled(),
 	}
 
 	// We have our own middleware before the argument parsing, this is to check for things such as whether or not the command is enabled at all
@@ -86,6 +86,10 @@ func InitCommands() {
 			adder.AddCommands()
 		}
 	}
+
+	// Needs every command registered, including the root level aliases kept for
+	// commands that moved into a container.
+	BuildOverrideNameAliases()
 }
 
 var _ featureflags.PluginWithFeatureFlags = (*Plugin)(nil)

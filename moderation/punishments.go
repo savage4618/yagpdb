@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"runtime/debug"
 	"slices"
 	"strconv"
 	"strings"
@@ -201,52 +202,67 @@ var ActionMap = map[string]string{
 }
 
 func sendPunishDM(config *Config, dmMsg string, action ModlogAction, gs *dstate.GuildSet, channel *dstate.ChannelState, message *discordgo.Message, author *discordgo.User, member *dstate.MemberState, duration time.Duration, reason string, warningID int, executedFromCommandTemplate bool) {
+	// this often runs in its own goroutine, where a panic would take down the whole process
+	defer func() {
+		if r := recover(); r != nil {
+			logger.WithField("guild", gs.ID).Errorf("recovered from panic while sending punishment DM\n%v\n%s", r, debug.Stack())
+		}
+	}()
+
 	if dmMsg == "" {
 		dmMsg = DefaultDMMessage
 	}
 
-	// Execute and send the DM message template
-	ctx := templates.NewContext(gs, channel, member)
-	if executedFromCommandTemplate {
-		ctx.ExecutedFrom = templates.ExecutedFromNestedCommandTemplate
-	} else {
-		ctx.ExecutedFrom = templates.ExecutedFromCommandTemplate
-	}
-	ctx.Data["Reason"] = reason
-	if duration > 0 {
-		ctx.Data["Duration"] = duration
-		ctx.Data["HumanDuration"] = common.HumanizeDuration(common.DurationPrecisionMinutes, duration)
-	} else {
-		ctx.Data["Duration"] = 0
-		ctx.Data["HumanDuration"] = "never"
-	}
-	ctx.Data["Author"] = author
-	ctx.Data["ModAction"] = action
-	ctx.Data["Message"] = message
+	executeDM := func(source string) (string, error) {
+		ctx := templates.NewContext(gs, channel, member)
+		if executedFromCommandTemplate {
+			ctx.ExecutedFrom = templates.ExecutedFromNestedCommandTemplate
+		} else {
+			ctx.ExecutedFrom = templates.ExecutedFromCommandTemplate
+		}
+		ctx.Data["Reason"] = reason
+		if duration > 0 {
+			ctx.Data["Duration"] = duration
+			ctx.Data["HumanDuration"] = common.HumanizeDuration(common.DurationPrecisionMinutes, duration)
+		} else {
+			ctx.Data["Duration"] = 0
+			ctx.Data["HumanDuration"] = "never"
+		}
+		ctx.Data["Author"] = author
+		ctx.Data["ModAction"] = action
+		ctx.Data["Message"] = message
 
-	if warningID != -1 {
-		ctx.Data["WarningID"] = warningID
+		if warningID != -1 {
+			ctx.Data["WarningID"] = warningID
+		}
+
+		if duration < 1 {
+			ctx.Data["HumanDuration"] = "permanently"
+		}
+
+		return ctx.Execute(source)
 	}
 
-	if duration < 1 {
-		ctx.Data["HumanDuration"] = "permanently"
-	}
-
-	executed, err := ctx.Execute(dmMsg)
+	executed, err := executeDM(dmMsg)
 	if err != nil {
 		logger.WithError(err).WithField("guild", gs.ID).Warn("Failed executing punishment DM")
-		executed = "Failed executing template."
-		sendFailedDMError(gs.ID, config.ErrorChannel, fmt.Sprintf("Failed executing punishment DM (Action: `%s`).\nError: `%v`", ActionMap[action.Prefix], err))
+		sendFailedDMError(gs.ID, config.ErrorChannel, fmt.Sprintf("Failed executing punishment DM (Action: `%s`), sent the default DM instead.\nError: `%v`", ActionMap[action.Prefix], err))
+
+		executed, err = executeDM(DefaultDMMessage)
+		if err != nil {
+			logger.WithError(err).WithField("guild", gs.ID).Error("Failed executing default punishment DM")
+			executed = "Failed executing template."
+		}
 	}
 
 	if strings.TrimSpace(executed) != "" {
 		msgSend := &discordgo.MessageSend{
 			Embeds: []*discordgo.MessageEmbed{
 				{
-					Description: common.ReplaceServerInvites(executed, 0, "[removed-server-invite]"),
+					Description: executed,
 				},
 			},
-			Components: bot.GenerateServerInfoButton(gs.ID),
+			Components: bot.DMComponents(gs.ID, nil, 0),
 		}
 
 		err = bot.SendDMComplexMessage(member.User.ID, msgSend)
