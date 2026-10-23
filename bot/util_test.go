@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/botlabs-gg/yagpdb/v2/bot/eventsystem"
+	"github.com/botlabs-gg/yagpdb/v2/common"
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
 	"github.com/botlabs-gg/yagpdb/v2/lib/dstate"
 )
@@ -153,5 +155,94 @@ func TestDMComponentsRowIsLast(t *testing.T) {
 	}
 	if countComponents(got) > MaxComponentsV2Total {
 		t.Errorf("v2: %d components exceeds the limit", countComponents(got))
+	}
+}
+
+func TestOwnVerificationLinks(t *testing.T) {
+	common.ConfHost.LoadedValue = "yagpdb.xyz"
+
+	cases := []struct {
+		name    string
+		msg     *discordgo.Message
+		genuine bool
+	}{
+		{"short link in embed", &discordgo.Message{Embeds: []*discordgo.MessageEmbed{{Description: "Verify: https://yagpdb.xyz/v/AbCdEfGhIjKlMnOp"}}}, true},
+		{"long link in content", &discordgo.Message{Content: "https://yagpdb.xyz/public/1/verify/2/AbCdEfGhIjKlMnOpQrStUvWxYzAbCdEf"}, true},
+		{"link button", &discordgo.Message{Components: []discordgo.TopLevelComponent{&discordgo.ActionsRow{Components: []discordgo.InteractiveComponent{
+			&discordgo.Button{Style: discordgo.LinkButton, URL: "https://yagpdb.xyz/v/AbCdEfGhIjKlMnOp", Label: "Verify"},
+		}}}}, true},
+		{"scam beside a genuine link", &discordgo.Message{Content: "https://yagpdb.xyz/v/AbCdEfGhIjKlMnOp and https://free-nitro.example"}, false},
+		{"scam in a container", &discordgo.Message{
+			Content: "https://yagpdb.xyz/v/AbCdEfGhIjKlMnOp",
+			Components: []discordgo.TopLevelComponent{&discordgo.Container{Components: []discordgo.TopLevelComponent{
+				&discordgo.TextDisplay{Content: "https://free-nitro.example"},
+			}}},
+		}, false},
+		{"look-alike host", &discordgo.Message{Content: "https://yagpdb.xyz.example/v/AbCdEfGhIjKlMnOp"}, false},
+		{"other page on our host", &discordgo.Message{Content: "https://yagpdb.xyz/manage/1"}, false},
+		{"no links", &discordgo.Message{Content: "hello"}, false},
+	}
+
+	for _, c := range cases {
+		genuine, err := onlyVerificationLinks(c.msg)
+		if err != nil {
+			t.Fatalf("%s: %v", c.name, err)
+		}
+
+		if genuine != c.genuine {
+			t.Errorf("%s: got genuine %t, want %t", c.name, genuine, c.genuine)
+		}
+	}
+}
+
+func TestDMComponentsExtraButtons(t *testing.T) {
+	extra := discordgo.Button{Label: "Appeal", Style: discordgo.SuccessButton, CustomID: "DM_EXTRA_1"}
+
+	got := DMComponents(1, nil, 0, extra)
+	row := got[len(got)-1].(discordgo.ActionsRow)
+
+	info := row.Components[0].(discordgo.Button)
+	if info.CustomID != fmt.Sprintf("%s%d", DMServerInfoCustomIDPrefix, 1) {
+		t.Error("info button is no longer first")
+	}
+	if info.Emoji == nil || info.Emoji.Name != "ℹ️" {
+		t.Error("info button should show ℹ️")
+	}
+	for _, c := range row.Components[:len(row.Components)-1] {
+		if label := c.(discordgo.Button).Label; label != "" {
+			t.Errorf("dm buttons should only show their emoji, got label %q", label)
+		}
+	}
+	if last := row.Components[len(row.Components)-1].(discordgo.Button); last.CustomID != extra.CustomID {
+		t.Errorf("extra button not appended, last button is %q", last.CustomID)
+	}
+}
+
+func TestRegisteredDMInteractionHandler(t *testing.T) {
+	defer func(saved []dmInteractionHandler) { dmInteractionHandlers = saved }(dmInteractionHandlers)
+	dmInteractionHandlers = nil
+
+	called := ""
+	RegisterDMInteractionHandler("DM_TEST_", func(evt *eventsystem.EventData) { called = "test" })
+
+	button := &discordgo.InteractionCreate{Interaction: discordgo.Interaction{
+		Type: discordgo.InteractionMessageComponent,
+		Data: discordgo.MessageComponentInteractionData{CustomID: "DM_TEST_123"},
+	}}
+	handler, ok := registeredDMInteractionHandler(button)
+	if !ok {
+		t.Fatal("registered prefix was not matched")
+	}
+	handler(nil)
+	if called != "test" {
+		t.Error("wrong handler returned")
+	}
+
+	other := &discordgo.InteractionCreate{Interaction: discordgo.Interaction{
+		Type: discordgo.InteractionMessageComponent,
+		Data: discordgo.MessageComponentInteractionData{CustomID: "DM_123"},
+	}}
+	if _, ok := registeredDMInteractionHandler(other); ok {
+		t.Error("unregistered prefix was matched")
 	}
 }

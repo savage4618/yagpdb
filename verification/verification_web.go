@@ -1,6 +1,7 @@
 package verification
 
 import (
+	"context"
 	"database/sql"
 	_ "embed"
 	"encoding/json"
@@ -9,7 +10,6 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/botlabs-gg/yagpdb/v2/analytics"
@@ -18,6 +18,7 @@ import (
 	"github.com/botlabs-gg/yagpdb/v2/common/scheduledevents2"
 	"github.com/botlabs-gg/yagpdb/v2/verification/models"
 	"github.com/botlabs-gg/yagpdb/v2/web"
+	"github.com/botlabs-gg/yagpdb/v2/web/discorddata"
 	"github.com/russross/blackfriday"
 	"github.com/sirupsen/logrus"
 	"github.com/volatiletech/null/v8"
@@ -62,22 +63,51 @@ func (p *Plugin) InitWeb() {
 
 	web.CPMux.Handle(pat.Post("/verification"), postHandler)
 
+	previewHandler := web.ControllerHandler(p.handlePreviewVerifyPage, "verification_verify_page")
+	web.CPMux.Handle(pat.Get("/verification/preview"), previewHandler)
+	web.CPMux.Handle(pat.Post("/verification/preview"), previewHandler)
+
 	getVerifyPageHandler := web.ControllerHandler(p.handleGetVerifyPage, "verification_verify_page")
 	postVerifyPageHandler := web.ControllerPostHandler(p.handlePostVerifyPage, getVerifyPageHandler, nil)
+	web.RootMux.Handle(pat.Get("/v/:token"), getVerifyPageHandler)
+	web.RootMux.Handle(pat.Post("/v/:token"), postVerifyPageHandler)
+
+	// The long form is in dms sent before the short one existed.
 	web.ServerPublicMux.Handle(pat.Get("/verify/:user_id/:token"), getVerifyPageHandler)
 	web.ServerPublicMux.Handle(pat.Post("/verify/:user_id/:token"), postVerifyPageHandler)
 }
+
+// VerifyPageURL is the link a user follows to verify. The token alone
+// identifies the session, so the link carries nothing else.
+func VerifyPageURL(token string) string {
+	return fmt.Sprintf("%s/v/%s", web.BaseURL(), token)
+}
+
+func findOpenVerificationSession(ctx context.Context, token string) (*models.VerificationSession, error) {
+	return models.VerificationSessions(
+		models.VerificationSessionWhere.Token.EQ(token),
+		models.VerificationSessionWhere.ExpiredAt.IsNull(),
+		models.VerificationSessionWhere.SolvedAt.IsNull()).OneG(ctx)
+}
+
+func findVerificationSettings(ctx context.Context, guildID int64) (*models.VerificationConfig, error) {
+	settings, err := models.FindVerificationConfigG(ctx, guildID)
+	if err == sql.ErrNoRows {
+		return &models.VerificationConfig{GuildID: guildID}, nil
+	}
+
+	return settings, err
+}
+
+const noVerificationSessionMessage = "This verification link has expired or was already used. Try rejoining the server, or contact its staff if the problem persists."
 
 func (p *Plugin) handleGetSettings(w http.ResponseWriter, r *http.Request) (web.TemplateData, error) {
 	ctx := r.Context()
 	g, templateData := web.GetBaseCPContextData(ctx)
 
-	settings, err := models.FindVerificationConfigG(ctx, g.ID)
-	if err == sql.ErrNoRows {
-		settings = &models.VerificationConfig{
-			GuildID: g.ID,
-		}
-		err = nil
+	settings, err := findVerificationSettings(ctx, g.ID)
+	if err != nil {
+		return templateData, err
 	}
 
 	roleInvalid := true
@@ -88,15 +118,16 @@ func (p *Plugin) handleGetSettings(w http.ResponseWriter, r *http.Request) (web.
 		}
 	}
 
-	if settings != nil && settings.DMMessage == "" {
+	if settings.DMMessage == "" {
 		settings.DMMessage = DefaultDMMessage
 	}
 
+	settings.PageContent = pageContentOrDefault(settings.PageContent)
 	templateData["DefaultPageContent"] = DefaultPageContent
 	templateData["PluginSettings"] = settings
 	templateData["RoleInvalid"] = roleInvalid
 
-	return templateData, err
+	return templateData, nil
 }
 
 func (p *Plugin) handlePostSettings(w http.ResponseWriter, r *http.Request) (web.TemplateData, error) {
@@ -126,21 +157,33 @@ func (p *Plugin) handlePostSettings(w http.ResponseWriter, r *http.Request) (web
 	return templateData, err
 }
 
+// handleGetVerifyPage renders a standalone page rather than the dashboard, as
+// the user only needs to solve the captcha, not log in or see the panel.
 func (p *Plugin) handleGetVerifyPage(w http.ResponseWriter, r *http.Request) (web.TemplateData, error) {
 	ctx := r.Context()
-	g, templateData := web.GetBaseCPContextData(ctx)
+	_, templateData := web.GetCreateTemplateData(ctx)
 
-	// render main page content
-	settings, err := models.FindVerificationConfigG(ctx, g.ID)
-	if err == sql.ErrNoRows {
-		settings = &models.VerificationConfig{
-			GuildID: g.ID,
-		}
-		err = nil
+	if _, ok := templateData["REValid"]; ok {
+		// Just submitted, the session is solved by now so there is nothing to look up.
+		return templateData, nil
 	}
 
+	session, err := findOpenVerificationSession(ctx, pat.Param(r, "token"))
+	if err == sql.ErrNoRows {
+		templateData.AddAlerts(web.ErrorAlert(noVerificationSessionMessage))
+		return templateData, nil
+	}
 	if err != nil {
 		return templateData, err
+	}
+
+	settings, err := findVerificationSettings(ctx, session.GuildID)
+	if err != nil {
+		return templateData, err
+	}
+
+	if gs, err := discorddata.GetFullGuild(session.GuildID); err == nil && gs != nil {
+		templateData["GuildName"] = gs.Name
 	}
 
 	if !settings.Enabled {
@@ -148,53 +191,55 @@ func (p *Plugin) handleGetVerifyPage(w http.ResponseWriter, r *http.Request) (we
 		return templateData, nil
 	}
 
-	if _, ok := templateData["REValid"]; !ok {
-		// check if there's a valid session if we didn't just finish verifying
-		userID, _ := strconv.ParseInt(pat.Param(r, "user_id"), 10, 64)
-		token := pat.Param(r, "token")
-		_, err = models.VerificationSessions(
-			models.VerificationSessionWhere.UserID.EQ(userID),
-			models.VerificationSessionWhere.Token.EQ(token),
-			models.VerificationSessionWhere.ExpiredAt.IsNull(),
-			models.VerificationSessionWhere.SolvedAt.IsNull()).OneG(ctx)
-
-		if err != nil {
-			if err == sql.ErrNoRows {
-				templateData.AddAlerts(web.ErrorAlert("No verification session, try rejoining the server or contact an admin if the problem persist"))
-				return templateData, nil
-			}
-
-			return templateData, err
-		}
-	}
-
-	templateData["ExtraHead"] = template.HTML(`<script src="https://www.google.com/recaptcha/api.js" async defer></script>`)
 	templateData["GoogleReCaptchaSiteKey"] = confGoogleReCAPTCHASiteKey.GetString()
 
-	msg := settings.PageContent
-	if msg == "" {
-		msg = DefaultPageContent
+	templateData["RenderedPageContent"] = renderPageContent(settings.PageContent)
+
+	return templateData, nil
+}
+
+func renderPageContent(content string) template.HTML {
+	unsafe := blackfriday.MarkdownCommon([]byte(pageContentOrDefault(content)))
+	return template.HTML(common.UGCHtmlPolicy.SanitizeBytes(unsafe))
+}
+
+// handlePreviewVerifyPage shows the verify page as users will see it, from the
+// unsaved content when posted from the editor. The captcha is not loaded, so a
+// preview never counts against the reCAPTCHA quota.
+func (p *Plugin) handlePreviewVerifyPage(w http.ResponseWriter, r *http.Request) (web.TemplateData, error) {
+	ctx := r.Context()
+	g, templateData := web.GetBaseCPContextData(ctx)
+
+	content := r.FormValue("PageContent")
+	if r.Method != http.MethodPost {
+		settings, err := findVerificationSettings(ctx, g.ID)
+		if err != nil {
+			return templateData, err
+		}
+		content = settings.PageContent
 	}
 
-	unsafe := blackfriday.MarkdownCommon([]byte(msg))
-	html := common.UGCHtmlPolicy.SanitizeBytes(unsafe)
-	templateData["RenderedPageContent"] = template.HTML(html)
+	templateData["Preview"] = true
+	templateData["GuildName"] = g.Name
+	templateData["RenderedPageContent"] = renderPageContent(content)
 
 	return templateData, nil
 }
 
 func (p *Plugin) handlePostVerifyPage(w http.ResponseWriter, r *http.Request) (web.TemplateData, error) {
 	ctx := r.Context()
-	g, templateData := web.GetBaseCPContextData(ctx)
+	_, templateData := web.GetCreateTemplateData(ctx)
 
-	settings, err := models.FindVerificationConfigG(ctx, g.ID)
+	verSession, err := findOpenVerificationSession(ctx, pat.Param(r, "token"))
 	if err == sql.ErrNoRows {
-		settings = &models.VerificationConfig{
-			GuildID: g.ID,
-		}
-		err = nil
+		templateData.AddAlerts(web.ErrorAlert(noVerificationSessionMessage))
+		return templateData, nil
+	}
+	if err != nil {
+		return templateData, err
 	}
 
+	settings, err := findVerificationSettings(ctx, verSession.GuildID)
 	if err != nil {
 		return templateData, err
 	}
@@ -209,56 +254,41 @@ func (p *Plugin) handlePostVerifyPage(w http.ResponseWriter, r *http.Request) (w
 		logrus.WithError(err).Error("Failed recaptcha response")
 	}
 
-	token := pat.Param(r, "token")
-	userID, _ := strconv.ParseInt(pat.Param(r, "user_id"), 10, 64)
+	if !valid {
+		templateData.AddAlerts(web.ErrorAlert("Invalid reCAPTCHA submission."))
+		return templateData, nil
+	}
 
-	verSession, err := models.VerificationSessions(
-		models.VerificationSessionWhere.UserID.EQ(userID),
-		models.VerificationSessionWhere.Token.EQ(token),
-		models.VerificationSessionWhere.ExpiredAt.IsNull(),
-		models.VerificationSessionWhere.SolvedAt.IsNull()).OneG(ctx)
+	ip := ""
+	if confVerificationTrackIPs.GetBool() {
+		ip = web.GetRequestIP(r)
+	}
 
+	model := &models.VerifiedUser{
+		UserID:     verSession.UserID,
+		GuildID:    verSession.GuildID,
+		VerifiedAt: time.Now(),
+		IP:         ip,
+	}
+
+	err = model.UpsertG(ctx, true, []string{"guild_id", "user_id"}, boil.Infer(), boil.Infer())
 	if err != nil {
-		if err == sql.ErrNoRows {
-			templateData.AddAlerts(web.ErrorAlert("No verification session, try rejoining the server or contact an admin if the problem persist"))
-			return templateData, nil
-		}
-
+		web.CtxLogger(r.Context()).WithError(err).Error("failed verifying user")
 		return templateData, err
 	}
 
-	if valid {
-		ip := ""
-		if confVerificationTrackIPs.GetBool() {
-			ip = web.GetRequestIP(r)
-		}
+	scheduledevents2.ScheduleEvent("verification_user_verified", verSession.GuildID, time.Now(), verSession.UserID)
+	verSession.SolvedAt = null.TimeFrom(time.Now())
+	verSession.UpdateG(ctx, boil.Infer())
 
-		model := &models.VerifiedUser{
-			UserID:     userID,
-			GuildID:    g.ID,
-			VerifiedAt: time.Now(),
-			IP:         ip,
-		}
+	go analytics.RecordActiveUnit(verSession.GuildID, p, "completed")
 
-		err := model.UpsertG(ctx, true, []string{"guild_id", "user_id"}, boil.Infer(), boil.Infer())
-		if err != nil {
-			web.CtxLogger(r.Context()).WithError(err).Error("failed verifying user")
-			return templateData, err
-		}
-
-		scheduledevents2.ScheduleEvent("verification_user_verified", g.ID, time.Now(), userID)
-		verSession.SolvedAt = null.TimeFrom(time.Now())
-		verSession.UpdateG(ctx, boil.Infer())
-
-		go analytics.RecordActiveUnit(g.ID, p, "completed")
-
-	} else {
-		templateData.AddAlerts(web.ErrorAlert("Invalid reCAPTCHA submission."))
+	if gs, err := discorddata.GetFullGuild(verSession.GuildID); err == nil && gs != nil {
+		templateData["GuildName"] = gs.Name
 	}
+	templateData["REValid"] = true
 
-	templateData["REValid"] = valid
-
-	return templateData, err
+	return templateData, nil
 }
 
 type CheckCAPTCHAResponse struct {
