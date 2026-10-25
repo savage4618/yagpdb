@@ -1,10 +1,13 @@
 package codegen
 
 import (
-	"github.com/viant/toolbox"
+	"slices"
+
 	"reflect"
-	"strings"
 	"sort"
+	"strings"
+
+	"github.com/viant/toolbox"
 )
 
 func firstLetterToUppercase(text string) string {
@@ -54,10 +57,8 @@ func getSliceHelperTypeName(typeName string, isPointer bool) string {
 
 func isSkipable(options *Options, field *toolbox.FieldInfo) bool {
 	if options := getTagOptions(field.Tag, options.TagName); len(options) > 0 {
-		for _, candidate := range options {
-			if candidate == "-" {
-				return true
-			}
+		if slices.Contains(options, "-") {
+			return true
 		}
 	}
 	return false
@@ -89,7 +90,7 @@ func normalizeTypeName(typeName string) string {
 	return strings.Replace(typeName, "*", "", strings.Count(typeName, "*"))
 }
 
-func sortedKeys(m map[string]string) ([]string) {
+func sortedKeys(m map[string]string) []string {
 	keys := make([]string, len(m))
 	i := 0
 	for k := range m {

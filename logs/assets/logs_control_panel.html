@@ -18,7 +18,8 @@
 <header class="page-header">
     {{if .GlobalUsernameTrackingEnabled}}
     <h2>Message and username/nickname logs</h2>
-    {{else}}
+    {{template "cp_docs_link" "moderation/logging"}}
+  {{else}}
     <h2>Message logs</h2>
     {{end}}
 </header>

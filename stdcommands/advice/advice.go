@@ -22,7 +22,7 @@ var Command = &commands.YAGCommand{
 	},
 	DefaultEnabled:      true,
 	SlashCommandEnabled: true,
-	RunFunc: func(data *dcmd.Data) (interface{}, error) {
+	RunFunc: func(data *dcmd.Data) (any, error) {
 		//return "The API this command used has been shut down :(", nil
 		random := true
 		addr := "http://api.adviceslip.com/advice"
@@ -37,7 +37,7 @@ var Command = &commands.YAGCommand{
 			return randomAdvice(), nil
 		}
 
-		var decoded interface{}
+		var decoded any
 
 		if random {
 			decoded = &RandomAdviceResp{}

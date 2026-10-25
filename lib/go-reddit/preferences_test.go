@@ -2,9 +2,11 @@ package reddit
 
 import (
 	"fmt"
+	"os"
+
 	"github.com/jarcoal/httpmock"
 	"github.com/stretchr/testify/assert"
-	"io/ioutil"
+
 	"testing"
 )
 
@@ -24,7 +26,7 @@ func TestGetMyPreferences(t *testing.T) {
 func TestUpdateMyPreferences(t *testing.T) {
 	url := fmt.Sprintf("%s/api/v1/me/preferences", baseAuthURL)
 	httpmock.Activate()
-	response, _ := ioutil.ReadFile("test_data/preferences/my_preferences.json")
+	response, _ := os.ReadFile("test_data/preferences/my_preferences.json")
 	httpmock.RegisterResponder("PATCH", url, httpmock.NewStringResponder(200, string(response)))
 	defer httpmock.DeactivateAndReset()
 

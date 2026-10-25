@@ -2,7 +2,6 @@ package quicksetup
 
 import (
 	_ "embed"
-	"fmt"
 	"net/http"
 	"slices"
 	"strconv"
@@ -17,9 +16,6 @@ import (
 
 //go:embed assets/quicksetup.html
 var pageHTML string
-
-// The same permissions the bot is invited with everywhere else on the site.
-const invitePermissions = 1516122532343
 
 type moduleView struct {
 	*module
@@ -97,7 +93,7 @@ func setupPendingBannerMW(inner http.Handler) http.Handler {
 		if r.Method == http.MethodGet && strings.HasSuffix(path, "/home") && !web.GetIsReadOnly(r.Context()) {
 			if guild := web.ContextGuild(r.Context()); guild != nil {
 				if state, err := getSetupState(guild.ID); err == nil && state == setupStateNone {
-					r = r.WithContext(web.SetContextTemplateData(r.Context(), map[string]interface{}{"QuickSetupPending": true}))
+					r = r.WithContext(web.SetContextTemplateData(r.Context(), map[string]any{"QuickSetupPending": true}))
 				}
 			}
 		}
@@ -129,10 +125,10 @@ func handleGetSetup(w http.ResponseWriter, r *http.Request) (web.TemplateData, e
 	}
 
 	templateData["SetupModules"] = views
+	templateData["FromInvite"] = r.FormValue("from") == "invite"
 	templateData["ReadOnly"] = web.GetIsReadOnly(ctx)
 	templateData["DefaultWelcomeMessage"] = DefaultWelcomeMessage
-	templateData["InviteURL"] = fmt.Sprintf("https://discord.com/oauth2/authorize?client_id=%s&scope=applications.commands%%20bot&permissions=%d&guild_id=%d",
-		common.ConfClientID.GetString(), invitePermissions, guild.ID)
+	templateData["InviteURL"] = web.BotInviteURL(guild.ID)
 
 	if systemChannel, err := strconv.ParseInt(guild.SystemChannelID, 10, 64); err == nil {
 		templateData["DefaultWelcomeChannel"] = systemChannel

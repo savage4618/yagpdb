@@ -6,6 +6,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"html/template"
+	"maps"
 	"net/http"
 	"net/url"
 	"strings"
@@ -26,13 +28,11 @@ var panelLogKeyCore = cplogs.RegisterActionFormat(&cplogs.ActionFormat{
 	FormatString: "Updated core config",
 })
 
-func SetContextTemplateData(ctx context.Context, data map[string]interface{}) context.Context {
+func SetContextTemplateData(ctx context.Context, data map[string]any) context.Context {
 	// Check for existing data
 	if val := ctx.Value(common.ContextKeyTemplateData); val != nil {
 		cast := val.(TemplateData)
-		for k, v := range data {
-			cast[k] = v
-		}
+		maps.Copy(cast, data)
 		return ctx
 	}
 
@@ -80,7 +80,7 @@ func LogIgnoreErr(err error) {
 	}
 }
 
-type TemplateData map[string]interface{}
+type TemplateData map[string]any
 
 func (t TemplateData) AddAlerts(alerts ...*Alert) TemplateData {
 	if t["Alerts"] == nil {
@@ -103,7 +103,7 @@ func GetCreateTemplateData(ctx context.Context) (context.Context, TemplateData) 
 	if v := ctx.Value(common.ContextKeyTemplateData); v != nil {
 		return ctx, v.(TemplateData)
 	}
-	tmplData := TemplateData(make(map[string]interface{}))
+	tmplData := TemplateData(make(map[string]any))
 	ctx = context.WithValue(ctx, common.ContextKeyTemplateData, tmplData)
 	return ctx, tmplData
 }
@@ -111,6 +111,9 @@ func GetCreateTemplateData(ctx context.Context) (context.Context, TemplateData) 
 type Alert struct {
 	Style   string
 	Message string
+
+	// MessageHTML replaces Message on warning and info alerts, which are rendered on the page rather than as popups.
+	MessageHTML template.HTML `json:"-"`
 }
 
 const (
@@ -120,21 +123,21 @@ const (
 	AlertWarning = "warning"
 )
 
-func ErrorAlert(args ...interface{}) *Alert {
+func ErrorAlert(args ...any) *Alert {
 	return &Alert{
 		Style:   AlertDanger,
 		Message: fmt.Sprint(args...),
 	}
 }
 
-func WarningAlert(args ...interface{}) *Alert {
+func WarningAlert(args ...any) *Alert {
 	return &Alert{
 		Style:   AlertWarning,
 		Message: fmt.Sprint(args...),
 	}
 }
 
-func SucessAlert(args ...interface{}) *Alert {
+func SucessAlert(args ...any) *Alert {
 	return &Alert{
 		Style:   AlertSuccess,
 		Message: fmt.Sprint(args...),
@@ -168,7 +171,7 @@ func GetBaseCPContextData(ctx context.Context) (*dstate.GuildSet, TemplateData) 
 
 // Checks and error and logs it aswell as adding it to the alerts
 // returns true if an error occured
-func CheckErr(t TemplateData, err error, errMsg string, logger func(...interface{})) bool {
+func CheckErr(t TemplateData, err error, errMsg string, logger func(...any)) bool {
 	if err == nil {
 		return false
 	}
@@ -380,4 +383,14 @@ func GetIsReadOnly(ctx context.Context) bool {
 	}
 
 	return readOnly.(bool)
+}
+
+// The permissions the bot is invited with everywhere on the site.
+const BotInvitePermissions = 1516122532343
+
+// BotInviteURL adds the bot to the server again, which also grants it any
+// permissions it was missing, without removing it first.
+func BotInviteURL(guildID int64) string {
+	return fmt.Sprintf("https://discord.com/oauth2/authorize?client_id=%s&scope=applications.commands%%20bot&permissions=%d&guild_id=%d",
+		common.ConfClientID.GetString(), BotInvitePermissions, guildID)
 }
