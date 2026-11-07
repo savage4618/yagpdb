@@ -98,6 +98,46 @@ html.dark .tabs .nav-link:hover {
 	border-color: #1d2127;
 }
 
+/* Pages with many tabs (groups, rulesets, menus) keep them on one scrollable row on phones instead of wrapping. */
+@media (max-width: 767px) {
+	.tabs .nav-tabs {
+		flex-wrap: nowrap;
+		overflow-x: auto;
+		overflow-y: hidden;
+		-webkit-overflow-scrolling: touch;
+		scrollbar-width: thin;
+	}
+
+	.tabs .nav-tabs .nav-item {
+		flex: 0 0 auto;
+	}
+
+	.tabs .nav-tabs .nav-link {
+		white-space: nowrap;
+	}
+}
+
+/* Bootstrap 4.2+ gives tables dark text, the dark theme expects them to inherit its light text. */
+html.dark .table,
+html.dark .table-hover tbody tr:hover {
+	color: inherit;
+}
+
+/* The theme's dark text colors are below WCAG AA contrast on the card background. */
+html.dark body {
+	color: #abb4be;
+}
+
+html.dark label:not(.btn):not(.custom-file-label) {
+	color: #c9cdd6;
+}
+
+html.dark .text-muted,
+html.dark .help-block,
+html.dark .form-text {
+	color: #9ba3af !important;
+}
+
 html.dark .tabs .nav-link:focus {
 	background-color: #2e353e;
 	border-color: #1d2127;
@@ -496,6 +536,130 @@ html.dark select optgroup {
   left: 50%;
   background: #7FC6A6;
 } */
+
+/* Compact switches for dense rows: tgl-sm on the input, or tgl-compact on a container of checkbox template switches. */
+.tgl-flat.tgl-sm + .tgl-btn,
+.tgl-compact .tgl-flat + .tgl-btn {
+	width: 2.75em;
+	height: 1.5em;
+	min-width: 2.75em;
+	flex-shrink: 0;
+	padding: 1px;
+	border-width: 3px;
+}
+
+.tgl-compact .form-group {
+	margin-bottom: 0;
+}
+
+.tgl-compact .tgl-btn,
+.tgl-compact .tgl-desc {
+	margin-bottom: 0 !important;
+}
+
+.tgl-compact .tgl-desc:empty {
+	display: none;
+}
+
+/* In tables, switches sit centered in their column and level with the rest of the row. */
+.table.tgl-compact td,
+.table.tgl-compact th {
+	vertical-align: middle;
+}
+
+.table.tgl-compact td .form-group {
+	justify-content: center;
+}
+
+.feed-table .feed-title p {
+	margin-bottom: 0;
+}
+
+/* On phones each feed row becomes a card: title, labelled fields, switches side by side, then the actions. */
+@media (max-width: 767px) {
+	.table.feed-table,
+	.table.feed-table tbody,
+	.table.feed-table tr,
+	.table.feed-table td {
+		display: block;
+		width: 100%;
+	}
+
+	.table.feed-table {
+		overflow: visible;
+	}
+
+	.table.feed-table thead {
+		display: none;
+	}
+
+	.table.feed-table tr {
+		margin-bottom: 1rem;
+		padding: .75rem;
+		border: 1px solid rgba(128, 128, 128, .3);
+		border-radius: 6px;
+	}
+
+	.table.feed-table td {
+		padding: .3rem 0;
+		border: 0;
+	}
+
+	.table.feed-table td[data-label]::before {
+		content: attr(data-label);
+		display: block;
+		margin-bottom: .25rem;
+		font-size: .85em;
+		font-weight: 600;
+	}
+
+	.table.feed-table .feed-title {
+		font-size: 1.05em;
+		overflow-wrap: anywhere;
+	}
+
+	.table.feed-table td.feed-switch {
+		display: inline-flex;
+		flex-direction: row-reverse;
+		align-items: center;
+		width: auto;
+		margin-right: 1.25rem;
+	}
+
+	.table.feed-table td.feed-switch::before {
+		display: inline;
+		margin: 0 0 0 .5rem;
+	}
+
+	.table.feed-table td.feed-switch .form-group {
+		margin-bottom: 0;
+	}
+
+	.table.feed-table .multiselect-native-select,
+	.table.feed-table .multiselect-native-select > .btn-group {
+		display: block;
+		width: 100%;
+	}
+
+	.table.feed-table .multiselect-native-select .multiselect {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		width: 100%;
+	}
+
+	.table.feed-table .feed-actions {
+		padding-top: .75rem;
+	}
+
+	.table.feed-table .feed-actions .btn-group {
+		display: flex;
+	}
+
+	.table.feed-table .feed-actions .btn {
+		flex: 1 1 0;
+	}
+}
 
 .tgl-flat + .tgl-btn {
 	padding: 2px;

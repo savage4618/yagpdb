@@ -49,6 +49,27 @@
         els.submitIcon = document.getElementById("mc-submit-icon");
         els.editHint = document.getElementById("mc-edit-hint");
         els.typeLockNote = document.getElementById("mc-type-lock-note");
+        els.code = document.getElementById("mc-code");
+        els.codeCopy = document.getElementById("mc-code-copy");
+        els.codeView = document.getElementById("mc-code-view");
+        if (els.codeCopy) els.codeCopy.addEventListener("click", copyCode);
+        root.querySelectorAll(".mc-pane-tabs label").forEach(function (label) {
+            label.addEventListener("click", function (e) {
+                e.preventDefault();
+                let input = label.querySelector("input");
+                if (input) setPane(input.value);
+            });
+        });
+        root.querySelectorAll(".mc-view-toggle label").forEach(function (label) {
+            label.addEventListener("click", function (e) {
+                e.preventDefault();
+                let input = label.querySelector("input");
+                if (input) setView(input.value);
+            });
+        });
+        root.addEventListener("change", function (e) {
+            if (e.target.type === "checkbox") renderPreview();
+        });
 
         root.querySelectorAll(".mc-action-toggle label").forEach(function (label) {
             label.addEventListener("click", function (e) {
@@ -80,6 +101,7 @@
         setAction("create");
         setMode("normal");
         renderEmbeds();
+        if (window.YAGEmojiPicker) YAGEmojiPicker.enhance(root);
     }
 
     function base() { return "/manage/" + els.guildID + "/messagecreator"; }
@@ -114,6 +136,23 @@
         }
     }
 
+    function setPane(pane) {
+        els.root.setAttribute("data-pane", pane);
+        els.root.querySelectorAll("input[name=mc-pane]").forEach(function (r) { r.checked = r.value === pane; });
+        syncToggle("mc-pane");
+        if (pane !== "edit") setView(pane);
+        window.scrollTo(0, els.root.getBoundingClientRect().top + window.scrollY - 70);
+    }
+
+    function setView(view) {
+        let code = view === "code";
+        els.root.querySelectorAll("input[name=mc-view]").forEach(function (r) { r.checked = r.value === view; });
+        syncToggle("mc-view");
+        show(els.preview, !code);
+        show(els.codeView, code);
+        show(els.codeCopy, code);
+    }
+
     function setMode(mode) {
         currentMode = mode;
         els.root.querySelectorAll("input[name=mc-mode]").forEach(function (r) { r.checked = r.value === mode; });
@@ -123,7 +162,7 @@
         show(els.normalFields, !v2);
         els.componentsLabel.innerHTML = v2
             ? "Components"
-            : 'Components <span class="text-muted">(optional - buttons &amp; menus)</span>';
+            : 'Components <small class="text-muted">optional, buttons and menus</small>';
         els.modeHint.textContent = v2
             ? "Components V2: content & embeds are replaced by components (Text, Container, Section, …)."
             : "Normal message: content, an embed, and up to 5 rows of buttons / select menus.";
@@ -320,15 +359,15 @@
     }
 
     function embedCard(e, idx) {
-        let card = el("div", { class: "mc-node" });
-        card.appendChild(nodeHeader("Embed " + (idx + 1), state.embeds, idx, rebuildEmbeds));
+        let node = nodeCard("Embed " + (idx + 1), state.embeds, idx, rebuildEmbeds);
+        let card = node.body;
 
         card.appendChild(el("div", { class: "form-row" }, [
             el("div", { class: "col-md-8" }, [field("Title", e.title, function (v) { e.title = v; refreshPreview(); })]),
             el("div", { class: "col-md-4" }, [colorField("Color", e.color, function (v) { e.color = v; refreshPreview(); })])
         ]));
         card.appendChild(field("Title URL", e.url, function (v) { e.url = v; refreshPreview(); }, { placeholder: "https://..." }));
-        card.appendChild(field("Description", e.description, function (v) { e.description = v; refreshPreview(); }, { textarea: true, rows: 3 }));
+        card.appendChild(field("Description", e.description, function (v) { e.description = v; refreshPreview(); }, { textarea: true, rows: 3, emojiPicker: "insert" }));
         card.appendChild(el("div", { class: "form-row" }, [
             el("div", { class: "col-md-6" }, [field("Image URL", e.imageUrl, function (v) { e.imageUrl = v; refreshPreview(); }, { placeholder: "https://..." })]),
             el("div", { class: "col-md-6" }, [field("Thumbnail URL", e.thumbUrl, function (v) { e.thumbUrl = v; refreshPreview(); }, { placeholder: "https://..." })])
@@ -341,27 +380,23 @@
             el("div", { class: "col-md-8" }, [field("Footer text", e.footerText, function (v) { e.footerText = v; refreshPreview(); })]),
             el("div", { class: "col-md-4" }, [field("Footer icon URL", e.footerIcon, function (v) { e.footerIcon = v; refreshPreview(); }, { placeholder: "https://..." })])
         ]));
-        let tsCb = el("input", { type: "checkbox" }); tsCb.className = "mr-2"; tsCb.checked = !!e.ts;
-        tsCb.addEventListener("change", function () { e.ts = tsCb.checked; refreshPreview(); });
-        card.appendChild(el("label", { class: "d-flex align-items-center mb-2" }, [tsCb, "Include current timestamp in footer"]));
+        card.appendChild(switchField("Include current timestamp in footer", !!e.ts, function (on) { e.ts = on; refreshPreview(); }, "mb-2"));
 
         card.appendChild(el("hr", { class: "my-2" }));
         card.appendChild(el("label", { class: "small d-block mb-1" }, ["Fields"]));
         e.fields = e.fields || [];
         e.fields.forEach(function (f, fi) {
-            let inlineCb = el("input", { type: "checkbox" }); inlineCb.checked = !!f.inline;
-            inlineCb.addEventListener("change", function () { f.inline = inlineCb.checked; refreshPreview(); });
             card.appendChild(el("div", { class: "mc-opt-row" }, [
                 inlineInput("Field name", f.name, function (v) { f.name = v; refreshPreview(); }),
                 inlineInput("Field value", f.value, function (v) { f.value = v; refreshPreview(); }),
-                el("label", { class: "mb-0 small text-nowrap", title: "Display inline" }, [inlineCb, " in"]),
-                btn('<i class="fas fa-times"></i>', "btn-block btn-danger", function () { e.fields.splice(fi, 1); renderEmbeds(); renderPreview(); }, { noconfirm: true })
+                switchField("Inline", !!f.inline, function (on) { f.inline = on; refreshPreview(); }, "small text-nowrap", true),
+                removeBtn("Remove field", function () { e.fields.splice(fi, 1); renderEmbeds(); renderPreview(); })
             ]));
         });
         if (e.fields.length < 25) {
             card.appendChild(btn("+ Field", "btn-block btn-outline-secondary", function () { e.fields.push({ name: "", value: "", inline: false }); renderEmbeds(); renderPreview(); }));
         }
-        return card;
+        return node.card;
     }
 
     // Build clean Discord embed objects from the model, dropping empty ones.
@@ -414,12 +449,11 @@
     function colorField(labelText, value, oninput) {
         let selected = (typeof value === "number") ? value : hexToInt("#5865f2");
         let enabled = typeof value === "number";
-        let cb = el("input", { type: "checkbox" }); cb.className = "mr-2"; cb.checked = enabled;
-        let pickerWrap = el("div", { class: "mt-1" }, [colorPicker(value, function (v) { selected = v; if (cb.checked) oninput(v); })]);
+        let on = enabled;
+        let pickerWrap = el("div", { class: "mt-1" }, [colorPicker(value, function (v) { selected = v; if (on) oninput(v); })]);
         show(pickerWrap, enabled);
-        cb.addEventListener("change", function () { show(pickerWrap, cb.checked); oninput(cb.checked ? selected : undefined); });
         return el("div", { class: "form-group mb-2" }, [
-            el("label", { class: "small mb-1 d-block" }, [cb, labelText]),
+            switchField(labelText, enabled, function (checked) { on = checked; show(pickerWrap, on); oninput(on ? selected : undefined); }, "small", true),
             pickerWrap
         ]);
     }
@@ -475,22 +509,28 @@
         return bar;
     }
 
-    function nodeHeader(title, list, idx, onChange) {
+    // nodeCard builds the card for one embed or component, with move and remove buttons in its header.
+    function nodeCard(title, list, idx, onChange) {
         onChange = onChange || rebuildEditor;
-        let tools = el("div", { class: "mc-node-tools" }, [
-            btn('<i class="fas fa-arrow-up"></i>', "btn-sm btn-secondary", function () { move(list, idx, -1, onChange); }, { title: "Move up" }),
-            btn('<i class="fas fa-arrow-down"></i>', "btn-sm btn-secondary", function () { move(list, idx, 1, onChange); }, { title: "Move down" }),
-            btn('<i class="fas fa-trash"></i>', "btn-sm btn-danger", function () { list.splice(idx, 1); onChange(); }, { noconfirm: true, title: "Remove" })
+        let tools = el("div", { class: "btn-group btn-group-sm mc-node-tools" }, [
+            btn('<i class="fas fa-chevron-up"></i>', "btn-primary", function () { move(list, idx, -1, onChange); }, { title: "Move up" }),
+            btn('<i class="fas fa-chevron-down"></i>', "btn-primary", function () { move(list, idx, 1, onChange); }, { title: "Move down" }),
+            btn('<i class="fas fa-trash"></i>', "btn-danger", function () { list.splice(idx, 1); onChange(); }, { noconfirm: true, title: "Remove" })
         ]);
-        return el("div", { class: "mc-node-header" }, [el("span", { class: "mc-node-title" }, [title]), tools]);
+        let body = el("div", { class: "card-body" });
+        let card = el("section", { class: "card mc-node" }, [
+            el("header", { class: "card-header" }, [el("h2", { class: "card-title" }, [title]), tools]),
+            body
+        ]);
+        return { card: card, body: body };
     }
 
     function renderNode(node, list, idx) {
-        let card = el("div", { class: "mc-node" });
-        card.appendChild(nodeHeader(NODE_TITLES[node.type] || ("Type " + node.type), list, idx));
+        let wrap = nodeCard(NODE_TITLES[node.type] || ("Type " + node.type), list, idx);
+        let card = wrap.body;
         let body;
         switch (node.type) {
-            case 10: body = field("Text (markdown supported)", node.content, function (v) { node.content = v; refreshPreview(); }, { textarea: true, rows: 2 }); break;
+            case 10: body = field("Text (markdown supported)", node.content, function (v) { node.content = v; refreshPreview(); }, { textarea: true, rows: 2, emojiPicker: "insert" }); break;
             case 14: body = separatorBody(node); break;
             case 1: body = actionRowBody(node); break;
             case 9: body = sectionBody(node); break;
@@ -499,14 +539,12 @@
             default: body = el("div", { class: "text-muted small" }, ["Unsupported component type " + node.type]);
         }
         card.appendChild(body);
-        return card;
+        return wrap.card;
     }
 
     function separatorBody(node) {
         let wrap = el("div");
-        let cb = el("input", { type: "checkbox" }); cb.className = "mr-2"; cb.checked = node.divider !== false;
-        cb.addEventListener("change", function () { node.divider = cb.checked; refreshPreview(); });
-        wrap.appendChild(el("label", { class: "small d-block mb-2" }, [cb, "Show divider line"]));
+        wrap.appendChild(switchField("Show divider line", node.divider !== false, function (on) { node.divider = on; refreshPreview(); }, "small mb-2"));
         wrap.appendChild(selectField("Spacing", [{ v: 1, t: "Small" }, { v: 2, t: "Large" }], node.spacing || 1, function (v) { node.spacing = parseInt(v); refreshPreview(); }));
         return wrap;
     }
@@ -531,10 +569,9 @@
     }
 
     function interactiveEditor(child, list, idx) {
-        let card = el("div", { class: "mc-node" });
-        card.appendChild(nodeHeader(child.type === 2 ? "Button" : "Select menu", list, idx));
-        card.appendChild(child.type === 2 ? buttonEditor(child) : selectEditor(child));
-        return card;
+        let wrap = nodeCard(child.type === 2 ? "Button" : "Select menu", list, idx);
+        wrap.body.appendChild(child.type === 2 ? buttonEditor(child) : selectEditor(child));
+        return wrap.card;
     }
 
     function buttonEditor(node) {
@@ -553,9 +590,10 @@
         } else {
             wrap.appendChild(customIdField(node));
         }
-        wrap.appendChild(field("Emoji (optional)", node.emoji && node.emoji.name, function (v) {
-            if (v) node.emoji = { name: v }; else delete node.emoji; refreshPreview();
-        }, { placeholder: "e.g. 🔥" }));
+        wrap.appendChild(field("Emoji (optional)", formatEmoji(node.emoji), function (v) {
+            let emoji = parseEmoji(v);
+            if (emoji) node.emoji = emoji; else delete node.emoji; refreshPreview();
+        }, { placeholder: "e.g. 🔥", emojiPicker: "replace" }));
         return wrap;
     }
 
@@ -581,10 +619,11 @@
             wrap.appendChild(el("label", { class: "small mb-1 d-block" }, ["Options"]));
             node.options.forEach(function (opt, oi) {
                 wrap.appendChild(el("div", { class: "mc-opt-row" }, [
+                    optionEmojiButton(opt),
                     inlineInput("Label", opt.label, function (v) { opt.label = v; refreshPreview(); }),
                     inlineInput("Value", opt.value, function (v) { opt.value = v; refreshPreview(); }),
                     inlineInput("Description", opt.description, function (v) { if (v) opt.description = v; else delete opt.description; refreshPreview(); }),
-                    node.options.length > 1 ? btn('<i class="fas fa-times"></i>', "btn-block btn-danger", function () { node.options.splice(oi, 1); rebuildEditor(); }, { noconfirm: true }) : null
+                    node.options.length > 1 ? removeBtn("Remove option", function () { node.options.splice(oi, 1); rebuildEditor(); }) : null
                 ]));
             });
             if (node.options.length < 25) {
@@ -605,7 +644,7 @@
             ta.addEventListener("input", function () { td.content = ta.value; refreshPreview(); });
             body.appendChild(el("div", { class: "mc-opt-row" }, [
                 ta,
-                node.components.length > 1 ? btn('<i class="fas fa-times"></i>', "btn-block btn-danger", function () { node.components.splice(ti, 1); rebuildEditor(); }, { noconfirm: true }) : null
+                node.components.length > 1 ? removeBtn("Remove text", function () { node.components.splice(ti, 1); rebuildEditor(); }) : null
             ]));
         });
         if (node.components.length < 3) body.appendChild(btn("+ Text", "btn-block btn-outline-secondary", function () { node.components.push(defText()); rebuildEditor(); }));
@@ -639,7 +678,7 @@
             body.appendChild(el("div", { class: "mc-opt-row" }, [
                 inlineInput("Image / video URL", it.media.url, function (v) { it.media.url = v; refreshPreview(); }),
                 inlineInput("Description (optional)", it.description, function (v) { if (v) it.description = v; else delete it.description; refreshPreview(); }),
-                node.items.length > 1 ? btn('<i class="fas fa-times"></i>', "btn-block btn-danger", function () { node.items.splice(ii, 1); rebuildEditor(); }, { noconfirm: true }) : null
+                node.items.length > 1 ? removeBtn("Remove item", function () { node.items.splice(ii, 1); rebuildEditor(); }) : null
             ]));
         });
         if (node.items.length < 10) body.appendChild(btn("+ Item", "btn-block btn-outline-secondary", function () { node.items.push({ media: { url: "" } }); rebuildEditor(); }));
@@ -720,6 +759,194 @@
         if (msg.embeds) msg.embeds.forEach(function (e) { els.preview.appendChild(renderEmbed(e)); });
         if (msg.components) renderComponents(msg.components, els.preview);
         if (!els.preview.childNodes.length) els.preview.appendChild(div("text-muted", "Nothing to preview yet."));
+        renderCode(msg);
+    }
+
+    // ---- Custom command code ----
+    // The generated code is a tree of calls: {fn, entries}, where each entry is one line of items,
+    // so key/value pairs stay together.
+
+    let CODE_INDENT = "\t";
+    let BUTTON_STYLE_NAMES = { 1: "primary", 2: "secondary", 3: "success", 4: "danger", 5: "link" };
+    let MENU_TYPE_NAMES = { 5: "user", 6: "role", 7: "mentionable", 8: "channel" };
+
+    function codeString(s) {
+        s = String(s);
+        if (s.indexOf("\n") !== -1 && s.indexOf("`") === -1) return "`" + s + "`";
+        return JSON.stringify(s);
+    }
+
+    function codeCall(fn, entries) { return { fn: fn, entries: entries }; }
+    function codePairs(fn, pairs) { return codeCall(fn, pairs.map(function (p) { return [codeString(p[0]), p[1]]; })); }
+    function codeSlice(items) { return codeCall("cslice", items.map(function (i) { return [i]; })); }
+
+    function codeRender(x, depth) {
+        if (typeof x === "string") return x;
+        if (!x.entries.length) return "(" + x.fn + ")";
+        let pad = CODE_INDENT.repeat(depth + 1);
+        return "(" + x.fn + "\n" + x.entries.map(function (e) {
+            return pad + e.map(function (i) { return codeRender(i, depth + 1); }).join(" ");
+        }).join("\n") + "\n" + CODE_INDENT.repeat(depth) + ")";
+    }
+
+    function codeSend(call) { return "{{ sendMessage nil " + codeRender(call, 0) + " }}"; }
+
+    function codeValue(v) {
+        if (Array.isArray(v)) return codeSlice(v.map(codeValue));
+        if (v && typeof v === "object") return codePairs("sdict", Object.keys(v).map(function (k) { return [k, codeValue(v[k])]; }));
+        if (typeof v === "string") return codeString(v);
+        return String(v);
+    }
+
+    function codeEmoji(emoji) {
+        let pairs = [];
+        if (emoji.id) pairs.push(["id", codeString(emoji.id)]);
+        pairs.push(["name", codeString(emoji.name || "")]);
+        if (emoji.animated) pairs.push(["animated", "true"]);
+        return codePairs("sdict", pairs);
+    }
+
+    function codeCustomID(id) {
+        id = id || "";
+        return id.indexOf(TEMPLATE_PREFIX) === 0 ? id.slice(TEMPLATE_PREFIX.length) : id;
+    }
+
+    function codeButton(b) {
+        let pairs = [];
+        if (b.label) pairs.push(["label", codeString(b.label)]);
+        if (b.emoji) pairs.push(["emoji", codeEmoji(b.emoji)]);
+        pairs.push(["style", codeString(BUTTON_STYLE_NAMES[b.style] || "primary")]);
+        if (b.style === 5) pairs.push(["url", codeString(b.url || "")]);
+        else if (codeCustomID(b.custom_id)) pairs.push(["custom_id", codeString(codeCustomID(b.custom_id))]);
+        if (b.disabled) pairs.push(["disabled", "true"]);
+        return codePairs("cbutton", pairs);
+    }
+
+    function codeMenu(m) {
+        let pairs = [];
+        if (MENU_TYPE_NAMES[m.type]) pairs.push(["type", codeString(MENU_TYPE_NAMES[m.type])]);
+        if (codeCustomID(m.custom_id)) pairs.push(["custom_id", codeString(codeCustomID(m.custom_id))]);
+        if (m.placeholder) pairs.push(["placeholder", codeString(m.placeholder)]);
+        if (m.min_values != null) pairs.push(["min_values", String(m.min_values)]);
+        if (m.max_values != null) pairs.push(["max_values", String(m.max_values)]);
+        if (m.disabled) pairs.push(["disabled", "true"]);
+        if (m.options && m.options.length) {
+            pairs.push(["options", codeSlice(m.options.map(function (o) {
+                let opt = [["label", codeString(o.label || "")], ["value", codeString(o.value || "")]];
+                if (o.description) opt.push(["description", codeString(o.description)]);
+                if (o.emoji) opt.push(["emoji", codeEmoji(o.emoji)]);
+                if (o.default) opt.push(["default", "true"]);
+                return codePairs("sdict", opt);
+            }))]);
+        }
+        return codePairs("cmenu", pairs);
+    }
+
+    function codeInteractive(c) { return c.type === 2 ? codeButton(c) : codeMenu(c); }
+
+    function codeEmbed(e) {
+        return codePairs("cembed", Object.keys(e).map(function (k) {
+            return [k, k === "timestamp" ? "currentTime" : codeValue(e[k])];
+        }));
+    }
+
+    function codeAllowedMentions() {
+        let parse = ["users"];
+        let roles = document.getElementById("mc-allow-role-mentions");
+        let everyone = document.getElementById("mc-allow-everyone-mentions");
+        if (roles && roles.checked) parse.push("roles");
+        if (everyone && everyone.checked) parse.push("everyone");
+        if (parse.length === 1) return null;
+        return codePairs("sdict", [["parse", codeSlice(parse.map(codeString))]]);
+    }
+
+    function codeV2Entries(comps) {
+        let entries = [];
+        comps.forEach(function (c) {
+            if (c.type === 10) {
+                entries.push(["text", codeString(c.content || "")]);
+            } else if (c.type === 9) {
+                let texts = (c.components || []).map(function (t) { return codeString(t.content || ""); });
+                let pairs = [["text", texts.length === 1 ? texts[0] : codeSlice(texts)]];
+                let acc = c.accessory;
+                if (acc && acc.type === 2) pairs.push(["button", codeButton(acc)]);
+                else if (acc && acc.type === 11) {
+                    let thumb = [["media", codeString((acc.media && acc.media.url) || "")]];
+                    if (acc.description) thumb.push(["description", codeString(acc.description)]);
+                    if (acc.spoiler) thumb.push(["spoiler", "true"]);
+                    pairs.push(["thumbnail", codePairs("sdict", thumb)]);
+                }
+                entries.push(["section", codePairs("sdict", pairs)]);
+            } else if (c.type === 12) {
+                entries.push(["gallery", codeSlice((c.items || []).map(function (it) {
+                    let item = [["media", codeString((it.media && it.media.url) || "")]];
+                    if (it.description) item.push(["description", codeString(it.description)]);
+                    if (it.spoiler) item.push(["spoiler", "true"]);
+                    return codePairs("sdict", item);
+                }))]);
+            } else if (c.type === 14) {
+                entries.push(["separator", c.spacing === 2 ? "true" : "false"]);
+            } else if (c.type === 17) {
+                let pairs = [];
+                if (typeof c.accent_color === "number") pairs.push(["color", String(c.accent_color)]);
+                if (c.spoiler) pairs.push(["spoiler", "true"]);
+                pairs.push(["components", codePairs("componentBuilder", codeV2Entries(c.components || []))]);
+                entries.push(["container", codePairs("sdict", pairs)]);
+            } else if (c.type === 1) {
+                entries.push(["interactive_components", codeSlice((c.components || []).map(codeInteractive))]);
+            }
+        });
+        return entries;
+    }
+
+    function generateCode(msg) {
+        let mentions = codeAllowedMentions();
+        if (currentMode === "componentsv2") {
+            let entries = codeV2Entries(msg.components || []);
+            if (!entries.length) return "";
+            if (mentions) entries.push(["allowed_mentions", mentions]);
+            return codeSend(codePairs("componentBuilder", entries));
+        }
+
+        let pairs = [];
+        let embeds = (msg.embeds || []).map(codeEmbed);
+        if (msg.content) pairs.push(["content", codeString(msg.content)]);
+        if (embeds.length) pairs.push(["embed", embeds.length === 1 ? embeds[0] : codeSlice(embeds)]);
+        if (msg.components && msg.components.length) {
+            pairs.push(["components", codeSlice(msg.components.map(function (row) {
+                return codeSlice((row.components || []).map(codeInteractive));
+            }))]);
+        }
+        if (mentions) pairs.push(["allowed_mentions", mentions]);
+        if (!pairs.length) return "";
+        return codeSend(codePairs("complexMessage", pairs));
+    }
+
+    function renderCode(msg) {
+        if (!els.code) return;
+        els.code.textContent = generateCode(msg) || "Add some content to get its code.";
+    }
+
+    function copyCode() {
+        let text = generateCode(computeMessage().message);
+        if (!text) return;
+        let done = function () {
+            els.codeCopy.textContent = "Copied";
+            setTimeout(function () { els.codeCopy.textContent = "Copy"; }, 1500);
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(done, function () { selectCode(); });
+        } else {
+            selectCode();
+        }
+    }
+
+    function selectCode() {
+        let range = document.createRange();
+        range.selectNodeContents(els.code);
+        let sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
     }
 
     function renderEmbed(e) {
@@ -799,7 +1026,9 @@
         switch (c.type) {
             case 2:
                 let st = BUTTON_STYLES[c.style] || BUTTON_STYLES[2];
-                let b = div("mc-v2-button", (c.emoji && c.emoji.name ? c.emoji.name + " " : "") + (c.label || (c.style === 5 ? "Link" : "Button")));
+                let b = div("mc-v2-button");
+                if (c.emoji && (c.emoji.id || c.emoji.name)) b.appendChild(emojiNode(c.emoji));
+                b.appendChild(span(c.label || (c.style === 5 ? "Link" : "Button")));
                 b.style.backgroundColor = st.bg; b.style.color = st.fg;
                 if (c.style === 5) { // link buttons show an external-link indicator, like Discord
                     let icon = document.createElement("i");
@@ -870,6 +1099,20 @@
     }
 
 
+    // switchField builds the dashboard's standard on/off switch with its label.
+    let switchCount = 0;
+    function switchField(labelText, checked, onchange, cls, compact) {
+        let id = "mc-switch-" + (switchCount++);
+        let input = el("input", { type: "checkbox", class: "tgl tgl-flat" + (compact ? " tgl-sm" : ""), id: id });
+        input.checked = checked;
+        input.addEventListener("change", function () { onchange(input.checked); });
+        return el("div", { class: "d-flex align-items-center " + (cls || "") }, [
+            input,
+            el("label", { class: "tgl-btn mb-0", for: id }),
+            el("label", { class: "mb-0 ml-2", for: id }, [labelText])
+        ]);
+    }
+
     function el(tag, attrs, children) {
         let e = document.createElement(tag);
         if (attrs) Object.keys(attrs).forEach(function (k) {
@@ -893,6 +1136,12 @@
         return b;
     }
 
+    function removeBtn(title, onclick) {
+        let b = btn('<i class="fas fa-times"></i>', "btn-sm btn-outline-danger mc-remove", onclick, { noconfirm: true, title: title });
+        b.setAttribute("aria-label", title);
+        return b;
+    }
+
     function field(labelText, value, oninput, opts) {
         opts = opts || {};
         let input = document.createElement(opts.textarea ? "textarea" : "input");
@@ -902,9 +1151,42 @@
         if (opts.maxlength) input.maxLength = opts.maxlength;
         input.value = value == null ? "" : value;
         input.addEventListener("input", function () { oninput(input.value); });
-        let children = [el("label", { class: "small mb-1" }, [labelText]), input];
+        let control = input;
+        if (opts.emojiPicker && window.YAGEmojiPicker) {
+            input.setAttribute("data-emoji-picker", opts.emojiPicker);
+            control = el("div", {}, [input]);
+            YAGEmojiPicker.enhance(control);
+        }
+        let children = [el("label", { class: "small mb-1" }, [labelText]), control];
         if (opts.help) children.push(el("small", { class: "form-text text-muted" }, [opts.help]));
         return el("div", { class: "form-group mb-2" }, children);
+    }
+
+    function parseEmoji(text) { return window.YAGEmojiPicker ? YAGEmojiPicker.parse(text) : (text ? { name: text } : null); }
+    function formatEmoji(emoji) {
+        if (!emoji) return "";
+        return window.YAGEmojiPicker ? YAGEmojiPicker.format(emoji) : (emoji.name || "");
+    }
+
+    function emojiNode(emoji) {
+        if (window.YAGEmojiPicker) return YAGEmojiPicker.render(emoji, "mc-emoji");
+        return span(emoji.name || "");
+    }
+
+    function optionEmojiButton(opt) {
+        let b = btn("", "btn-sm btn-outline-primary mc-opt-emoji", function () {
+            if (!window.YAGEmojiPicker) return;
+            YAGEmojiPicker.open(b, function (emoji) { opt.emoji = emoji; rebuildEditor(); });
+        }, { noconfirm: true, title: "Option emoji" });
+        b.setAttribute("aria-label", opt.emoji ? "Change option emoji" : "Pick option emoji");
+        if (opt.emoji && (opt.emoji.id || opt.emoji.name)) {
+            b.appendChild(emojiNode(opt.emoji));
+            b.addEventListener("contextmenu", function (e) { e.preventDefault(); delete opt.emoji; rebuildEditor(); });
+            b.title = "Option emoji (right click to remove)";
+        } else {
+            b.innerHTML = '<i class="far fa-smile" aria-hidden="true"></i>';
+        }
+        return b;
     }
 
     function readonlyField(labelText, value, help) {
@@ -979,8 +1261,13 @@
         { regex: /_([^_]+?)_/, tag: "em", recurse: true },
         { regex: /~~([\s\S]+?)~~/, tag: "s", recurse: true },
         { regex: /`([^`\n]+)`/, tag: "code", className: "mc-md-code", recurse: false },
-        { regex: /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/, build: buildLinkNode }
+        { regex: /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/, build: buildLinkNode },
+        { regex: /<(a?):(\w{2,32}):(\d{15,22})>/, build: buildCustomEmojiNode }
     ];
+
+    function buildCustomEmojiNode(match) {
+        return emojiNode({ id: match[3], name: match[2], animated: match[1] === "a" });
+    }
 
     function buildBoldItalicNode(match) {
         let strong = document.createElement("strong");
