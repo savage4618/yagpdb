@@ -1162,6 +1162,34 @@ func (s *Session) GuildRoles(guildID int64) (st []*Role, err error) {
 	return // TODO return pointer
 }
 
+// GuildRoleMemberCounts returns the number of members with each role, keyed by role id.
+// The everyone role is not included.
+// guildID: The ID of a Guild.
+func (s *Session) GuildRoleMemberCounts(guildID int64) (counts map[int64]int, err error) {
+	body, err := s.RequestWithBucketID("GET", EndpointGuildRoleMemberCounts(guildID), nil, nil, EndpointGuildRoleMemberCounts(guildID))
+	if err != nil {
+		return
+	}
+
+	var raw map[string]int
+	err = unmarshal(body, &raw)
+	if err != nil {
+		return
+	}
+
+	counts = make(map[int64]int, len(raw))
+	for k, v := range raw {
+		id, err := strconv.ParseInt(k, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+
+		counts[id] = v
+	}
+
+	return
+}
+
 // GuildRoleCreate returns a new Guild Role.
 // guildID: The ID of a Guild.
 func (s *Session) GuildRoleCreate(guildID int64) (st *Role, err error) {
@@ -1913,6 +1941,21 @@ func (s *Session) doChannelMessagesBulkDelete(channelID int64, messages []int64,
 func (s *Session) ChannelMessagePin(channelID, messageID int64) (err error) {
 
 	_, err = s.RequestWithBucketID("PUT", EndpointChannelMessagePin(channelID, messageID), nil, nil, EndpointChannelMessagePin(channelID, 0))
+	return
+}
+
+// ChannelVoiceStatusSet sets the status of a voice channel, an empty status clears it.
+// channelID: The ID of a voice channel.
+// status: The new status, up to 500 characters.
+func (s *Session) ChannelVoiceStatusSet(channelID int64, status string) (err error) {
+	data := struct {
+		Status *string `json:"status"`
+	}{}
+	if status != "" {
+		data.Status = &status
+	}
+
+	_, err = s.RequestWithBucketID("PUT", EndpointChannelVoiceStatus(channelID), data, nil, EndpointChannelVoiceStatus(channelID))
 	return
 }
 

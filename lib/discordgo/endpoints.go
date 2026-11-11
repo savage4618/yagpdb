@@ -122,6 +122,8 @@ var (
 	EndpointGuildSticker        = func(gID, sID int64) string { return "" }
 	EndpointGuildTagBadge       = func(gID int64, bID string) string { return "" }
 
+	EndpointGuildRoleMemberCounts = func(gID int64) string { return "" }
+
 	EndpointChannel                             = func(cID int64) string { return "" }
 	EndpointChannelThreads                      = func(cID int64) string { return "" }
 	EndpointChannelActiveThreads                = func(cID int64) string { return "" }
@@ -137,6 +139,7 @@ var (
 	EndpointChannelMessageAck                   = func(cID, mID int64) string { return "" }
 	EndpointChannelMessagesBulkDelete           = func(cID int64) string { return "" }
 	EndpointChannelMessagesPins                 = func(cID int64) string { return "" }
+	EndpointChannelVoiceStatus                  = func(cID int64) string { return "" }
 	EndpointChannelMessagePin                   = func(cID, mID int64) string { return "" }
 	EndpointChannelMessageCrosspost             = func(cID, mID int64) string { return "" }
 	EndpointChannelMessageThread                = func(cID, mID int64) string { return "" }
@@ -326,6 +329,7 @@ func CreateEndpoints(base string) {
 	}
 	EndpointGuildRoles = func(gID int64) string { return EndpointGuilds + StrID(gID) + "/roles" }
 	EndpointGuildRole = func(gID, rID int64) string { return EndpointGuilds + StrID(gID) + "/roles/" + StrID(rID) }
+	EndpointGuildRoleMemberCounts = func(gID int64) string { return EndpointGuilds + StrID(gID) + "/roles/member-counts" }
 	EndpointGuildInvites = func(gID int64) string { return EndpointGuilds + StrID(gID) + "/invites" }
 	EndpointGuildEmbed = func(gID int64) string { return EndpointGuilds + StrID(gID) + "/embed" }
 	EndpointGuildPrune = func(gID int64) string { return EndpointGuilds + StrID(gID) + "/prune" }
@@ -359,6 +363,7 @@ func CreateEndpoints(base string) {
 	EndpointChannelMessageAck = func(cID, mID int64) string { return EndpointChannels + StrID(cID) + "/messages/" + StrID(mID) + "/ack" }
 	EndpointChannelMessagesBulkDelete = func(cID int64) string { return EndpointChannelMessages(cID) + "/bulk-delete" }
 	EndpointChannelMessagesPins = func(cID int64) string { return EndpointChannelMessages(cID) + "/pins" }
+	EndpointChannelVoiceStatus = func(cID int64) string { return EndpointChannel(cID) + "/voice-status" }
 	EndpointChannelMessagePin = func(cID, mID int64) string { return EndpointChannelMessagesPins(cID) + "/" + StrID(mID) }
 	EndpointChannelMessageCrosspost = func(cID, mID int64) string { return EndpointChannelMessage(cID, mID) + "/crosspost" }
 	EndpointChannelMessageThread = func(cID, mID int64) string { return EndpointChannelMessage(cID, mID) + "/threads" }

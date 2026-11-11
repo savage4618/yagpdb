@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/botlabs-gg/yagpdb/v2/lib/discordgo"
+	"github.com/botlabs-gg/yagpdb/v2/lib/dstate"
 )
 
 var testSession = &discordgo.Session{ShardID: 0, ShardCount: 1}
@@ -108,8 +109,13 @@ func TestGuildCreate(t *testing.T) {
 		t.Fatal("gs is nil")
 	}
 
-	if gs.GetRole(initialTestRoleID) == nil {
+	role := gs.GetRole(initialTestRoleID)
+	if role == nil {
 		t.Fatal("gc role is nil")
+	}
+
+	if role.GuildID != initialTestGuildID {
+		t.Fatalf("role guild id not set: %d", role.GuildID)
 	}
 
 	if gs.GetChannel(initialTestChannelID) == nil {
@@ -241,6 +247,10 @@ func TestRoleUpdate(t *testing.T) {
 
 	if role.Name != updt.Role.Name {
 		t.Fatalf("role was not updated: name: %s", role.Name)
+	}
+
+	if role.GuildID != initialTestGuildID {
+		t.Fatalf("updated role guild id not set: %d", role.GuildID)
 	}
 }
 
@@ -419,5 +429,18 @@ func TestThreadListSyncWithoutChannelsReplacesAllThreads(t *testing.T) {
 	threads := tracker.GetGuild(initialTestGuildID).Threads
 	if len(threads) != 1 || threads[0].ID != testThreadID {
 		t.Fatalf("a sync without channel ids covers the whole guild and must replace every thread, got %d threads", len(threads))
+	}
+}
+
+func TestSetGuildSetsRoleGuild(t *testing.T) {
+	tracker := NewInMemoryTracker(TrackerConfig{}, 1)
+	tracker.SetGuild(&dstate.GuildSet{
+		GuildState: dstate.GuildState{ID: initialTestGuildID},
+		Roles:      []discordgo.Role{{ID: initialTestRoleID}},
+	})
+
+	role := tracker.GetGuild(initialTestGuildID).GetRole(initialTestRoleID)
+	if role == nil || role.GuildID != initialTestGuildID {
+		t.Fatalf("expected restored roles to have their guild set, got %+v", role)
 	}
 }
